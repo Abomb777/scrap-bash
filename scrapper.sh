@@ -44,7 +44,7 @@ else
     echo "Debug data is disabled"
 fi
 
-echo "loading...";
+echo -e "\033[0;32mLoading...\033[0m";
 LINK_URL="https://${DOMAIN}/?adType=${CATEGORY}"
 COOKIES=''
 IDS_LIST=()
@@ -82,6 +82,8 @@ LAST_SENT_ID=$(cat $POSITIONS_FILE | tail -n 1)
 if [ -z "$LAST_SENT_ID" ]; then
     LAST_SENT_ID=0
 fi
+
+echo "--------------START POSITION $LAST_SENT_ID------------------"
 
 # Detect curl command - prefer curl.exe on Windows to avoid PowerShell aliases
 if command -v curl.exe >/dev/null 2>&1; then
