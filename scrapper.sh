@@ -18,10 +18,10 @@ rm -f ./temp/page_response_*.html
 rm -f ./temp/page_response_*.bin
 rm -f ./temp/page_response_*.txt
 
-while getopts "c?:u:d?:t:q:u:p:h" opt; do
+while getopts "c?:l:d?:t:q:u:p:h" opt; do
     case $opt in
         c) CATEGORY=$OPTARG ;;
-        u) DOMAIN=$OPTARG ;;
+        l) DOMAIN=$OPTARG ;;
         d) DEBUG_DATA=true; echo "Debug data is enabled" ;;
         t) TG_BOT_TOKEN=$OPTARG ;;
         q) TG_BOT_CHANEL=$OPTARG ;;
