@@ -26,6 +26,7 @@ mkdir -p "${CURRENT_DIR}/temp" || {
     echo -e "\033[0;31mError: Failed to create temp directory '${CURRENT_DIR}/temp'. Check permissions.\033[0m" >&2
     exit 1
 }
+chmod 777 "${CURRENT_DIR}/temp"
 
 # Verify temp directory is writable
 if [ ! -w "${CURRENT_DIR}/temp" ]; then
