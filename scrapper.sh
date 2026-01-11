@@ -34,12 +34,14 @@ done
 
 if [ "$DEBUG_DATA" -eq 1 ]; then
     echo "Debug data is enabled"
+    echo "------------------------------------------"
     echo "Category: $CATEGORY"
     echo "Domain: $DOMAIN"
     echo "TG Bot Token: $TG_BOT_TOKEN"
     echo "TG Bot Channel: $TG_BOT_CHANNEL"
     echo "Login Email: $LOGIN_EMAIL"
     echo "Login Password: $LOGIN_PASSWD"
+    echo "------------------------------------------"
 else
     echo "Debug data is disabled"
 fi
