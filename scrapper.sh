@@ -4,33 +4,45 @@ LOGIN_EMAIL=""
 LOGIN_PASSWD=""
 DOMAIN=""
 TG_BOT_TOKEN=""
-TG_BOT_CHANEL=""
+TG_BOT_CHANNEL=""
 
-DEBUG_DATA=false
+DEBUG_DATA=0
 MAX_PAGES_BACK=2
 DELAY_SECONDS=2
-
 CATEGORY=1
 POSITIONS_FILE="./temp/positions_${CATEGORY}.txt"
+
 mkdir -p ./temp
 touch $POSITIONS_FILE
 rm -f ./temp/page_response_*.html
 rm -f ./temp/page_response_*.bin
 rm -f ./temp/page_response_*.txt
 
-while getopts "c?:l:d?:t:q:u:p:h" opt; do
+while getopts "c:l:dt:q:u:p:h" opt; do
     case $opt in
         c) CATEGORY=$OPTARG ;;
         l) DOMAIN=$OPTARG ;;
-        d) DEBUG_DATA=true; echo "Debug data is enabled" ;;
+        d) DEBUG_DATA=1 ;;
         t) TG_BOT_TOKEN=$OPTARG ;;
-        q) TG_BOT_CHANEL=$OPTARG ;;
+        q) TG_BOT_CHANNEL=$OPTARG ;;
         u) LOGIN_EMAIL=$OPTARG ;;
         p) LOGIN_PASSWD=$OPTARG ;;
-        h) echo "Usage: $0 -c <category> -u <domain> -d <debug_data> -t <tg_bot_token> -q <tg_bot_chanel> -u <login_email> -p <login_password> -h <help>" ;;
-        *) echo "Invalid option: -$OPTARG" ;;
+        h) echo "Usage: $0 -c <category> -l <domain> -d -t <tg_bot_token> -q <tg_bot_channel> -u <login_email> -p <login_password> -h"; exit 0;;
+        *) echo "Invalid option: -$OPTARG" >&2; exit 1;;
     esac
 done
+
+if [ "$DEBUG_DATA" -eq 1 ]; then
+    echo "Debug data is enabled"
+    echo "Category: $CATEGORY"
+    echo "Domain: $DOMAIN"
+    echo "TG Bot Token: $TG_BOT_TOKEN"
+    echo "TG Bot Channel: $TG_BOT_CHANNEL"
+    echo "Login Email: $LOGIN_EMAIL"
+    echo "Login Password: $LOGIN_PASSWD"
+else
+    echo "Debug data is disabled"
+fi
 
 echo "loading...";
 LINK_URL="https://${DOMAIN}/?adType=${CATEGORY}"
@@ -602,6 +614,57 @@ get_keywords() {
         # Update cookies from the response immediately
         update_cookies_from_file
         
+        # Check if we got redirected to login page (session expired)
+        if grep -q "Login to your account" ${zip_file}; then
+            echo "Session expired - re-authenticating..."
+            # Extract CSRF token from the login page if available
+            local csrf_token=$(grep -oP 'name="_token" value="\K[^"]+' ${zip_file})
+            if [ -n "$csrf_token" ]; then
+                echo "Found CSRF token in response, using it for login"
+                # Re-authenticate using login function with the extracted CSRF token
+                login "$csrf_token"
+            else
+                echo "CSRF token not found in response, fetching from login page"
+                # Re-authenticate using login function (will fetch CSRF token)
+                login
+            fi
+            if [ $? -eq 0 ]; then
+                echo "Re-authentication successful, retrying download for ID $id"
+                # Clean up the old zip file
+                rm -f "$zip_file"
+                # Re-download the zip file with new cookies
+                $CURL_CMD -sL -b "$COOKIES_FILE" -c "$COOKIES_FILE" "https://${DOMAIN}/viewer/${id}/zip" \
+                  -H "$HEADER_ACCEPT" \
+                  -H "$HEADER_ACCEPT_LANGUAGE" \
+                  -H "$HEADER_CACHE_CONTROL" \
+                  -H "$HEADER_PRAGMA" \
+                  -H "$HEADER_PRIORITY" \
+                  -H "referer: https://${DOMAIN}/viewer/${id}/view" \
+                  -H "$HEADER_SEC_CH_UA" \
+                  -H "$HEADER_SEC_CH_UA_MOBILE" \
+                  -H "$HEADER_SEC_CH_UA_PLATFORM" \
+                  -H "$HEADER_SEC_FETCH_DEST" \
+                  -H "$HEADER_SEC_FETCH_MODE" \
+                  -H "$HEADER_SEC_FETCH_SITE" \
+                  -H "$HEADER_SEC_FETCH_USER" \
+                  -H "$HEADER_UPGRADE_INSECURE_REQUESTS" \
+                  -H "$HEADER_USER_AGENT" \
+                  -H "Cookie: $EXTRA_COOKIES" -o "$zip_file"
+                # Update cookies again after retry
+                update_cookies_from_file
+                # Check if we still got a login page after re-authentication
+                if grep -q "Login to your account" ${zip_file}; then
+                    echo "Error: Still getting login page after re-authentication, skipping ID $id"
+                    rm -f "$zip_file" "$html_file"
+                    continue
+                fi
+            else
+                echo "Re-authentication failed, skipping ID $id"
+                rm -f "$zip_file" "$html_file"
+                continue
+            fi
+        fi
+
         # Try to extract HTML from the downloaded file
         # If it's not a zip, bsdtar will fail or output nothing
         bsdtar -xO -f "$zip_file" "*.html" > "$html_file" 2>/dev/null
@@ -736,7 +799,7 @@ for unique_kw in "${UNIQUE_KEYWORDS_LIST[@]}"; do
 done
 if [ ${#UNIQUE_KEYWORDS_LIST[@]} -gt 0 ]; then
     echo "Sending to Telegram: $uniq_message"
-    send_to_telegram "$uniq_message" "$TG_BOT_CHANEL"
+    send_to_telegram "$uniq_message" "$TG_BOT_CHANNEL"
 
     echo "Last sent ID: $LAST_SENT_ID"
     echo "Adding to positions file: $LAST_SENT_ID"
@@ -764,6 +827,6 @@ for ad in "${ADS_DATA_LIST[@]}"; do
         full_message="${full_message}${add_to_add}"$'\n\n'
         send_info=1
         echo "Sending to Telegram: $add_to_add"
-        send_to_telegram "$add_to_add" "$TG_BOT_CHANEL" "$ad_img"
+        send_to_telegram "$add_to_add" "$TG_BOT_CHANNEL" "$ad_img"
     fi
 done
