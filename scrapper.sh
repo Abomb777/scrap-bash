@@ -684,7 +684,6 @@ get_keywords() {
         # If it's not a zip, bsdtar will fail or output nothing
         bsdtar -xO -f "$zip_file" "*.html" > "$html_file" 2>/dev/null
         
-
         url_in_file=$(grep -oP ' url: \K\S+' "$html_file" | head -1)
 
         if [ -n "$url_in_file" ]; then
