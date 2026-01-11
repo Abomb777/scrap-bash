@@ -321,7 +321,7 @@ image_download() {
         echo ""
         return
     fi
-    if [[ "$DEBUG_MODE" -eq 1 ]]; then
+    if [[ "$DEBUG_DATA" -eq 1 ]]; then
         echo "Downloading image from $image_url" >&2
         echo "DEBUG: Cleaned URL: $image_url" >&2
         echo "DEBUG: URL length: ${#image_url}" >&2
@@ -349,7 +349,7 @@ image_download() {
     update_cookies_from_file
     
     # Debug output
-    if [[ "$DEBUG_MODE" -eq 1 ]]; then
+    if [[ "$DEBUG_DATA" -eq 1 ]]; then
         echo "DEBUG: HTTP code: $http_code" >&2
         echo "DEBUG: Image file path: $image_file" >&2
         echo "DEBUG: Image file exists: $([ -f "$image_file" ] && echo "yes" || echo "no")" >&2
@@ -362,12 +362,12 @@ image_download() {
         else
             debug_file_size=$(wc -c < "$image_file" 2>/dev/null || echo "0")
         fi
-        if [[ "$DEBUG_MODE" -eq 1 ]]; then
+        if [[ "$DEBUG_DATA" -eq 1 ]]; then
             echo "DEBUG: Image file size: $debug_file_size bytes" >&2
         fi
         # Check file type if available
         if command -v file >/dev/null 2>&1; then
-            if [[ "$DEBUG_MODE" -eq 1 ]]; then
+            if [[ "$DEBUG_DATA" -eq 1 ]]; then
                 echo "DEBUG: Image file type: $(file -b "$image_file" 2>/dev/null || echo "unknown")" >&2
             fi
         fi
@@ -375,7 +375,7 @@ image_download() {
         # Show first 200 bytes to check if it's HTML/error
         if [ "$debug_file_size" -gt 0 ]; then
             local first_bytes=$(head -c 200 "$image_file" 2>/dev/null | tr -d '\0' | head -c 200)
-            if [[ "$DEBUG_MODE" -eq 1 ]]; then
+            if [[ "$DEBUG_DATA" -eq 1 ]]; then
                 if echo "$first_bytes" | grep -qi "<html\|<!DOCTYPE\|error"; then
                     echo "DEBUG: File appears to be HTML/error page (first bytes: ${first_bytes:0:100}...)" >&2
                 else
@@ -400,7 +400,7 @@ image_download() {
         
         # Check if file has content and is likely an image (not HTML error page)
         if [ "$file_size" -gt 100 ] && ! head -c 100 "$image_file" 2>/dev/null | grep -qi "<html\|<!DOCTYPE\|error"; then
-            if [[ "$DEBUG_MODE" -eq 1 ]]; then
+            if [[ "$DEBUG_DATA" -eq 1 ]]; then
                 echo "DEBUG: File validation passed, encoding to base64..." >&2
             fi
             # Return base64-encoded image data
@@ -408,12 +408,12 @@ image_download() {
                 # Try with -w 0 first (Linux), fallback to without (macOS/Windows)
                 local base64_result=$(base64 -w 0 "$image_file" 2>/dev/null || base64 "$image_file" 2>/dev/null | tr -d '\n')
                 if [ -n "$base64_result" ]; then
-                    if [[ "$DEBUG_MODE" -eq 1 ]]; then
+                    if [[ "$DEBUG_DATA" -eq 1 ]]; then
                         echo "DEBUG: Base64 encoding successful (length: ${#base64_result} chars)" >&2
                     fi
                     echo "$base64_result"
                 else
-                    if [[ "$DEBUG_MODE" -eq 1 ]]; then
+                    if [[ "$DEBUG_DATA" -eq 1 ]]; then
                         echo "DEBUG: Base64 encoding failed or produced empty result" >&2
                     fi
                     rm -f "$image_file"
@@ -585,7 +585,7 @@ get_ids() {
         echo "12345"
     done
     echo "123456"
-    if [[ "$DEBUG_MODE" -eq 1 ]]; then
+    if [[ "$DEBUG_DATA" -eq 1 ]]; then
         echo "--------------DONE ToTAL IDS: ${#IDS_LIST[@]}------------------"
     fi
     echo "IDS_LIST: ${IDS_LIST[@]}"
