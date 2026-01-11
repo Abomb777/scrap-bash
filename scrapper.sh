@@ -498,8 +498,9 @@ get_ids() {
                 # Check if we got any IDs
                 if [ ${#newids[@]} -gt 0 ]; then
                     echo "Found ${#newids[@]} IDs on page $i"
+                    echo "newids: ${newids[@]}"
                     IDS_LIST+=("${newids[@]}")
-                    
+                    echo "0"
                     # Extra code to read structured data (id, description, img_url, country, date)
                     # We process the file card by card
                     # First, we get the indices of each card start
