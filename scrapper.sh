@@ -26,9 +26,8 @@ mkdir -p "${CURRENT_DIR}/temp" || {
     echo -e "\033[0;31mError: Failed to create temp directory '${CURRENT_DIR}/temp'. Check permissions.\033[0m" >&2
     exit 1
 }
-chmod 777 "${CURRENT_DIR}/temp"
-
-# Verify temp directory is writable
+# Verify temp directory is writable and set proper permissions
+chmod 755 "${CURRENT_DIR}/temp" 2>/dev/null || true
 if [ ! -w "${CURRENT_DIR}/temp" ]; then
     echo -e "\033[0;31mError: Temp directory '${CURRENT_DIR}/temp' is not writable. Check permissions.\033[0m" >&2
     exit 1
@@ -509,6 +508,19 @@ get_ids() {
             
             # Run curl: body goes to temp_file (-o), HTTP code goes to stdout (-w), errors to stderr
             # We redirect stdout (HTTP code) to http_code_file, stderr to see errors
+            # Test if we can write to the temp file location first
+            if ! touch "$temp_file" 2>/dev/null; then
+                echo -e "\033[0;31mError: Cannot write to temp file: $temp_file\033[0m" >&2
+                if [ $DEBUG_DATA -eq 1 ]; then
+                    echo "DEBUG: Directory exists: $([ -d "$(dirname "$temp_file")" ] && echo "yes" || echo "no")" >&2
+                    echo "DEBUG: Directory writable: $([ -w "$(dirname "$temp_file")" ] && echo "yes" || echo "no")" >&2
+                    ls -ld "$(dirname "$temp_file")" >&2 || true
+                fi
+                attempt=$((attempt + 1))
+                continue
+            fi
+            rm -f "$temp_file"  # Remove test file
+            
             $CURL_CMD -s -L -b "$COOKIES_FILE" -c "$COOKIES_FILE" \
               -o "$temp_file" \
               -w "%{http_code}" \
@@ -530,6 +542,19 @@ get_ids() {
               -H "$HEADER_USER_AGENT" \
               -H "Cookie: $EXTRA_COOKIES" > "$http_code_file" 2>&1
             curl_exit_code=$?
+            
+            # If curl failed with write error, show more details
+            if [ $curl_exit_code -eq 23 ]; then
+                echo -e "\033[0;31mError: Curl write error (exit code 23) - cannot write to: $temp_file\033[0m" >&2
+                if [ $DEBUG_DATA -eq 1 ]; then
+                    echo "DEBUG: Curl stderr output:" >&2
+                    cat "$http_code_file" >&2 || true
+                    echo "DEBUG: Directory permissions:" >&2
+                    ls -ld "$(dirname "$temp_file")" >&2 || true
+                    echo "DEBUG: Disk space:" >&2
+                    df -h "$(dirname "$temp_file")" >&2 || true
+                fi
+            fi
             
             # Read HTTP code from the file (last 3 characters should be the HTTP code)
             if [ -f "$http_code_file" ]; then
