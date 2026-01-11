@@ -1,4 +1,5 @@
 #!/bin/bash
+set +e  # Don't exit on error - continue execution
 
 LOGIN_EMAIL=""
 LOGIN_PASSWD=""
@@ -597,6 +598,7 @@ get_ids() {
         echo "IDS_LIST: ${IDS_LIST[@]}"
         echo "SKIP_KEYWORDS_LIST: ${SKIP_KEYWORDS_LIST[@]}"
     fi
+    return 0
 }
 
 # Function to get keywords from IDs
@@ -798,13 +800,15 @@ count_keyword_frequency() {
 #echo "old COOKIES: ${COOKIES}"
 #login
 #echo "new COOKIES:  ${COOKIES}"
-echo "---------- GET ids"
+echo "---------- GET ids" >&2
 get_ids
 get_ids_exit_code=$?
+echo "DEBUG: get_ids exit code: $get_ids_exit_code" >&2
 if [ $get_ids_exit_code -ne 0 ]; then
     echo -e "\033[0;31mWarning: get_ids function returned with error code $get_ids_exit_code\033[0m" >&2
 fi
-echo "---------- AFTER ids"
+echo "---------- AFTER ids" >&2
+echo "---------- AFTER ids (stdout)"
 
 echo "Total IDs found: ${#IDS_LIST[@]}"
 if [ $DEBUG_DATA -eq 1 ]; then
