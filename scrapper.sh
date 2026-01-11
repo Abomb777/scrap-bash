@@ -475,6 +475,7 @@ get_ids() {
                 echo "Retry attempt $attempt of $MAX_ATTEMPTS for page $i"
             fi
             
+            echo "DEBUG: TEMP FILES PREFIX: ${TEMP_FILES_PREFIX}"
             # Get HTTP status code and response body
             # -L flag follows redirects (e.g., 302)
             # -b reads initial cookies, -c updates the file with any Set-Cookie from response
