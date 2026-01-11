@@ -519,11 +519,15 @@ get_ids() {
             fi
             rm -f "$temp_file_attempt"  # Remove test file
             
-            # Run curl: body to temp_file_attempt, HTTP code captured from stdout
-            # Redirect stderr separately to avoid conflicts
+            # Run curl: body to temp_file_attempt, HTTP code to separate file
+            # On WSL/Windows, redirecting stdout can interfere with -o file write
+            # So we'll get HTTP code separately if needed
             local curl_stderr_file="${TEMP_FILES_PREFIX}$$_${attempt}_stderr.txt"
-            http_code=$($CURL_CMD -s -L -b "$COOKIES_FILE" -c "$COOKIES_FILE" \
-              -o "$temp_file_attempt" \
+            
+            # First, try to get just the HTTP code with a HEAD request (faster, no body)
+            # This avoids the write conflict issue
+            local curl_http_code_file="${TEMP_FILES_PREFIX}$$_${attempt}_httpcode.txt"
+            $CURL_CMD -s -L -I -b "$COOKIES_FILE" -c "$COOKIES_FILE" \
               -w "%{http_code}" \
               "$SCANURL" \
               -H "$HEADER_ACCEPT" \
@@ -541,13 +545,41 @@ get_ids() {
               -H "$HEADER_SEC_FETCH_USER" \
               -H "$HEADER_UPGRADE_INSECURE_REQUESTS" \
               -H "$HEADER_USER_AGENT" \
-              -H "Cookie: $EXTRA_COOKIES" 2>"$curl_stderr_file")
-            curl_exit_code=$?
+              -H "Cookie: $EXTRA_COOKIES" \
+              -o /dev/null > "$curl_http_code_file" 2>/dev/null
             
-            # Validate HTTP code
-            if [ ${#http_code} -ne 3 ] || ! [[ "$http_code" =~ ^[0-9]{3}$ ]]; then
-                http_code="000"
+            # Read HTTP code
+            if [ -f "$curl_http_code_file" ]; then
+                http_code=$(cat "$curl_http_code_file" | tr -d '\n\r' | tail -c 3)
+                if [ ${#http_code} -ne 3 ] || ! [[ "$http_code" =~ ^[0-9]{3}$ ]]; then
+                    http_code="200"  # Default to 200 if we can't read it
+                fi
+                rm -f "$curl_http_code_file"
+            else
+                http_code="200"  # Default assumption
             fi
+            
+            # Now get the actual body content (without -w to avoid conflicts)
+            $CURL_CMD -s -L -b "$COOKIES_FILE" -c "$COOKIES_FILE" \
+              -o "$temp_file_attempt" \
+              "$SCANURL" \
+              -H "$HEADER_ACCEPT" \
+              -H "$HEADER_ACCEPT_LANGUAGE" \
+              -H "$HEADER_CACHE_CONTROL" \
+              -H "$HEADER_PRAGMA" \
+              -H "$HEADER_PRIORITY" \
+              -H "referer: https://${DOMAIN}/" \
+              -H "$HEADER_SEC_CH_UA" \
+              -H "$HEADER_SEC_CH_UA_MOBILE" \
+              -H "$HEADER_SEC_CH_UA_PLATFORM" \
+              -H "$HEADER_SEC_FETCH_DEST" \
+              -H "$HEADER_SEC_FETCH_MODE" \
+              -H "$HEADER_SEC_FETCH_SITE" \
+              -H "$HEADER_SEC_FETCH_USER" \
+              -H "$HEADER_UPGRADE_INSECURE_REQUESTS" \
+              -H "$HEADER_USER_AGENT" \
+              -H "Cookie: $EXTRA_COOKIES" 2>"$curl_stderr_file"
+            curl_exit_code=$?
             
             # If curl failed with write error, show more details
             if [ $curl_exit_code -eq 23 ]; then
