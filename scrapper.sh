@@ -143,11 +143,13 @@ send_to_telegram() {
                 # Check if decoded file is valid and not empty
                 if [ -f "$temp_image_file" ] && [ -s "$temp_image_file" ]; then
                     # Send with image using multipart/form-data
+                    # URL encode the message for the caption to handle special characters
+                    local message_encoded=$(urlencode "$message")
                     result=$($CURL_CMD -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendPhoto" \
                         -F "chat_id=${chat_id}" \
                         -F "photo=@${temp_image_file}" \
                         -F "parse_mode=HTML" \
-                        -F "caption=${message}")
+                        -F "caption=${message_encoded}")
                 else
                     echo "Warning: Decoded image file is empty or invalid, sending text only" >&2
                     result=$($CURL_CMD -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
@@ -626,11 +628,12 @@ get_ids() {
                         
                         # Format as a single string and add to list
                         # URL encode variables to handle special characters safely
-                        local ad_desc_encoded=$(urlencode "$ad_desc")
-                        local ad_img_encoded=$(urlencode "$ad_img")
-                        local ad_country_encoded=$(urlencode "$ad_country")
-                        local ad_date_encoded=$(urlencode "$ad_date")
-                        local ad_data="ID:$ad_id | DESC:$ad_desc_encoded | IMG:$ad_img_encoded | COUNTRY:$ad_country_encoded | DATE:$ad_date_encoded"
+                        #local ad_desc_encoded=$(urlencode "$ad_desc")
+                        #local ad_img_encoded=$(urlencode "$ad_img")
+                        #local ad_country_encoded=$(urlencode "$ad_country")
+                        #local ad_date_encoded=$(urlencode "$ad_date")
+
+                        local ad_data="ID:$ad_id | DESC:$ad_desc | IMG:$ad_img | COUNTRY:$ad_country | DATE:$ad_date"
                         ADS_DATA_LIST+=("$ad_data")
                         echo "  - Extracted: $ad_data"
                     done
