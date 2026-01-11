@@ -800,7 +800,7 @@ count_keyword_frequency() {
 #echo "new COOKIES:  ${COOKIES}"
 echo "---------- GET ids"
 get_ids
-local get_ids_exit_code=$?
+get_ids_exit_code=$?
 if [ $get_ids_exit_code -ne 0 ]; then
     echo -e "\033[0;31mWarning: get_ids function returned with error code $get_ids_exit_code\033[0m" >&2
 fi
