@@ -11,14 +11,21 @@ DEBUG_DATA=0
 MAX_PAGES_BACK=2
 DELAY_SECONDS=2
 CATEGORY=1
-CURRENT_DIR=$(pwd)
+# Get current directory, fallback to . if pwd fails (can happen when piped)
+CURRENT_DIR=$(pwd 2>/dev/null || echo ".")
 POSITIONS_FILE="${CURRENT_DIR}/temp/positions_${CATEGORY}.txt"
 
-mkdir -p ${CURRENT_DIR}/temp
-touch $POSITIONS_FILE
-rm -f ${CURRENT_DIR}/temp/page_response_*.html
-rm -f ${CURRENT_DIR}/temp/page_response_*.bin
-rm -f ${CURRENT_DIR}/temp/page_response_*.txt
+mkdir -p "${CURRENT_DIR}/temp" || {
+    echo "Error: Failed to create temp directory" >&2
+    exit 1
+}
+touch "$POSITIONS_FILE" || {
+    echo "Error: Failed to create positions file" >&2
+    exit 1
+}
+rm -f "${CURRENT_DIR}/temp/page_response_*.html"
+rm -f "${CURRENT_DIR}/temp/page_response_*.bin"
+rm -f "${CURRENT_DIR}/temp/page_response_*.txt"
 
 while getopts "c:l:dt:q:u:p:h" opt; do
     case $opt in
@@ -56,8 +63,8 @@ KEYWORDS_LIST=()
 ADS_DATA_LIST=()
 UNIQUE_KEYWORDS_LIST=()
 
-COOKIES_FILE="./login_cookies.txt"
-TEMP_FILES_PREFIX="./temp/page_response_"
+COOKIES_FILE="${CURRENT_DIR}/login_cookies.txt"
+TEMP_FILES_PREFIX="${CURRENT_DIR}/temp/page_response_"
 SKIP_KEYWORDS_LIST=('Répondre' 'test' 'Responder' 'Risposta' '点赞' '2h ago' 'Alle Leistungen anzeigen' 'Скрыть' 'Come' 'Like' 'Sport' 'Reply')
 MAX_ATTEMPTS=3
 TOMORROW_TIMESTAMP=$(date -d 'tomorrow' +%s)
@@ -801,15 +808,13 @@ count_keyword_frequency() {
 #echo "old COOKIES: ${COOKIES}"
 #login
 #echo "new COOKIES:  ${COOKIES}"
-echo "---------- GET ids" >&2
+echo "---------- GET ids"
 get_ids
 get_ids_exit_code=$?
-echo "DEBUG: get_ids exit code: $get_ids_exit_code" >&2
 if [ $get_ids_exit_code -ne 0 ]; then
     echo -e "\033[0;31mWarning: get_ids function returned with error code $get_ids_exit_code\033[0m" >&2
 fi
-echo "---------- AFTER ids" >&2
-echo "---------- AFTER ids (stdout)"
+echo "---------- AFTER ids"
 
 echo "Total IDs found: ${#IDS_LIST[@]}"
 if [ $DEBUG_DATA -eq 1 ]; then
