@@ -498,15 +498,15 @@ get_ids() {
                 # Check if we got any IDs
                 if [ ${#newids[@]} -gt 0 ]; then
                     echo "Found ${#newids[@]} IDs on page $i"
-                    echo "newids: ${newids[@]}"
+                    if [ $DEBUG_DATA -eq 1 ]; then
+                        echo "newids: ${newids[@]}"
+                    fi
                     IDS_LIST+=("${newids[@]}")
-                    echo "0"
                     # Extra code to read structured data (id, description, img_url, country, date)
                     # We process the file card by card
                     # First, we get the indices of each card start
                     local card_starts=($(grep -n "<a href=\"https://${DOMAIN}/viewer/[0-9]\+/view\"" ${TEMP_FILES_PREFIX}$$.txt | cut -d: -f1))
                     local total_lines=$(wc -l < ${TEMP_FILES_PREFIX}$$.txt)
-                    echo "1"
                     for idx in "${!card_starts[@]}"; do
                         local start_line=${card_starts[$idx]}
                         local end_line=$total_lines
@@ -529,7 +529,6 @@ get_ids() {
                         ADS_DATA_LIST+=("$ad_data")
                         echo "  - Extracted: $ad_data"
                     done
-                    echo "12"
                     success=1
                 else                   
                     # Check if we got redirected to login page (session expired)
@@ -576,14 +575,12 @@ get_ids() {
                         echo "Failed to get IDs from page $i after $MAX_ATTEMPTS attempts"
                     fi
                 fi
-                echo "123"
             else
                 echo "Error: Failed to load page $i (HTTP status: $http_code, curl exit code: $?)"
                 if [ $attempt -eq $MAX_ATTEMPTS ]; then
                     echo "Failed to load page $i after $MAX_ATTEMPTS attempts"
                 fi
             fi
-            echo "1234"
             # Clean up temp file
             rm -f ${TEMP_FILES_PREFIX}$$.txt
             
@@ -594,15 +591,12 @@ get_ids() {
                 fi
             fi
         done
-        echo "12345"
     done
-    echo "123456"
-    #if [[ "$DEBUG_DATA" -eq 1 ]]; then
     if [ "$DEBUG_DATA" -eq 1 ]; then
         echo "--------------DONE ToTAL IDS: ${#IDS_LIST[@]}------------------"
+        echo "IDS_LIST: ${IDS_LIST[@]}"
+        echo "SKIP_KEYWORDS_LIST: ${SKIP_KEYWORDS_LIST[@]}"
     fi
-    echo "IDS_LIST: ${IDS_LIST[@]}"
-    echo "SKIP_KEYWORDS_LIST: ${SKIP_KEYWORDS_LIST[@]}"
 }
 
 # Function to get keywords from IDs
@@ -805,7 +799,11 @@ count_keyword_frequency() {
 #login
 #echo "new COOKIES:  ${COOKIES}"
 echo "---------- GET ids"
-get_ids || echo "Warning: get_ids function returned with error code $?"
+get_ids
+local get_ids_exit_code=$?
+if [ $get_ids_exit_code -ne 0 ]; then
+    echo -e "\033[0;31mWarning: get_ids function returned with error code $get_ids_exit_code\033[0m" >&2
+fi
 echo "---------- AFTER ids"
 
 echo "Total IDs found: ${#IDS_LIST[@]}"
