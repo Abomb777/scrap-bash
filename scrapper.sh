@@ -585,7 +585,8 @@ get_ids() {
         echo "12345"
     done
     echo "123456"
-    if [[ "$DEBUG_DATA" -eq 1 ]]; then
+    #if [[ "$DEBUG_DATA" -eq 1 ]]; then
+    if [ "$DEBUG_DATA" -eq 1 ]; then
         echo "--------------DONE ToTAL IDS: ${#IDS_LIST[@]}------------------"
     fi
     echo "IDS_LIST: ${IDS_LIST[@]}"
