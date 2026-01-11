@@ -26,8 +26,9 @@ mkdir -p "${CURRENT_DIR}/temp" || {
     echo -e "\033[0;31mError: Failed to create temp directory '${CURRENT_DIR}/temp'. Check permissions.\033[0m" >&2
     exit 1
 }
-# Verify temp directory is writable and set proper permissions
-chmod 755 "${CURRENT_DIR}/temp" 2>/dev/null || true
+chmod 777 "${CURRENT_DIR}/temp"
+
+# Verify temp directory is writable
 if [ ! -w "${CURRENT_DIR}/temp" ]; then
     echo -e "\033[0;31mError: Temp directory '${CURRENT_DIR}/temp' is not writable. Check permissions.\033[0m" >&2
     exit 1
@@ -500,34 +501,16 @@ get_ids() {
             fi
             
             # Run curl and capture both exit code and HTTP status
-            # Make temp file unique per attempt to avoid conflicts
-            local temp_file_attempt="${TEMP_FILES_PREFIX}$$_${attempt}.txt"
-            local http_code_file="${TEMP_FILES_PREFIX}$$_${attempt}_httpcode.txt"
+            # curl -w writes HTTP code to stdout AFTER -o writes body to file
+            # So we need to capture stdout separately
+            local http_code_file="${TEMP_FILES_PREFIX}$$_httpcode.txt"
             local http_code="000"
             local curl_exit_code=0
             
-            # Test if we can write to the temp file location first
-            if ! touch "$temp_file_attempt" 2>/dev/null; then
-                echo -e "\033[0;31mError: Cannot write to temp file: $temp_file_attempt\033[0m" >&2
-                if [ $DEBUG_DATA -eq 1 ]; then
-                    echo "DEBUG: Directory exists: $([ -d "$(dirname "$temp_file_attempt")" ] && echo "yes" || echo "no")" >&2
-                    echo "DEBUG: Directory writable: $([ -w "$(dirname "$temp_file_attempt")" ] && echo "yes" || echo "no")" >&2
-                    ls -ld "$(dirname "$temp_file_attempt")" >&2 || true
-                fi
-                attempt=$((attempt + 1))
-                continue
-            fi
-            rm -f "$temp_file_attempt"  # Remove test file
-            
-            # Run curl: body to temp_file_attempt, HTTP code to separate file
-            # On WSL/Windows, redirecting stdout can interfere with -o file write
-            # So we'll get HTTP code separately if needed
-            local curl_stderr_file="${TEMP_FILES_PREFIX}$$_${attempt}_stderr.txt"
-            
-            # First, try to get just the HTTP code with a HEAD request (faster, no body)
-            # This avoids the write conflict issue
-            local curl_http_code_file="${TEMP_FILES_PREFIX}$$_${attempt}_httpcode.txt"
-            $CURL_CMD -s -L -I -b "$COOKIES_FILE" -c "$COOKIES_FILE" \
+            # Run curl: body goes to temp_file (-o), HTTP code goes to stdout (-w), errors to stderr
+            # We redirect stdout (HTTP code) to http_code_file, stderr to see errors
+            $CURL_CMD -s -L -b "$COOKIES_FILE" -c "$COOKIES_FILE" \
+              -o "$temp_file" \
               -w "%{http_code}" \
               "$SCANURL" \
               -H "$HEADER_ACCEPT" \
@@ -545,62 +528,21 @@ get_ids() {
               -H "$HEADER_SEC_FETCH_USER" \
               -H "$HEADER_UPGRADE_INSECURE_REQUESTS" \
               -H "$HEADER_USER_AGENT" \
-              -H "Cookie: $EXTRA_COOKIES" \
-              -o /dev/null > "$curl_http_code_file" 2>/dev/null
-            
-            # Read HTTP code
-            if [ -f "$curl_http_code_file" ]; then
-                http_code=$(cat "$curl_http_code_file" | tr -d '\n\r' | tail -c 3)
-                if [ ${#http_code} -ne 3 ] || ! [[ "$http_code" =~ ^[0-9]{3}$ ]]; then
-                    http_code="200"  # Default to 200 if we can't read it
-                fi
-                rm -f "$curl_http_code_file"
-            else
-                http_code="200"  # Default assumption
-            fi
-            
-            # Now get the actual body content (without -w to avoid conflicts)
-            $CURL_CMD -s -L -b "$COOKIES_FILE" -c "$COOKIES_FILE" \
-              -o "$temp_file_attempt" \
-              "$SCANURL" \
-              -H "$HEADER_ACCEPT" \
-              -H "$HEADER_ACCEPT_LANGUAGE" \
-              -H "$HEADER_CACHE_CONTROL" \
-              -H "$HEADER_PRAGMA" \
-              -H "$HEADER_PRIORITY" \
-              -H "referer: https://${DOMAIN}/" \
-              -H "$HEADER_SEC_CH_UA" \
-              -H "$HEADER_SEC_CH_UA_MOBILE" \
-              -H "$HEADER_SEC_CH_UA_PLATFORM" \
-              -H "$HEADER_SEC_FETCH_DEST" \
-              -H "$HEADER_SEC_FETCH_MODE" \
-              -H "$HEADER_SEC_FETCH_SITE" \
-              -H "$HEADER_SEC_FETCH_USER" \
-              -H "$HEADER_UPGRADE_INSECURE_REQUESTS" \
-              -H "$HEADER_USER_AGENT" \
-              -H "Cookie: $EXTRA_COOKIES" 2>"$curl_stderr_file"
+              -H "Cookie: $EXTRA_COOKIES" > "$http_code_file" 2>&1
             curl_exit_code=$?
             
-            # If curl failed with write error, show more details
-            if [ $curl_exit_code -eq 23 ]; then
-                echo -e "\033[0;31mError: Curl write error (exit code 23) - cannot write to: $temp_file_attempt\033[0m" >&2
-                if [ $DEBUG_DATA -eq 1 ]; then
-                    echo "DEBUG: Curl stderr output:" >&2
-                    cat "$curl_stderr_file" >&2 2>/dev/null || true
-                    echo "DEBUG: Directory permissions:" >&2
-                    ls -ld "$(dirname "$temp_file_attempt")" >&2 || true
-                    echo "DEBUG: Disk space:" >&2
-                    df -h "$(dirname "$temp_file_attempt")" >&2 || true
+            # Read HTTP code from the file (last 3 characters should be the HTTP code)
+            if [ -f "$http_code_file" ]; then
+                http_code=$(cat "$http_code_file" | tr -d '\n\r' | tail -c 3)
+                # If http_code is empty or not 3 digits, it might be an error message
+                if [ ${#http_code} -ne 3 ] || ! [[ "$http_code" =~ ^[0-9]{3}$ ]]; then
+                    if [ $DEBUG_DATA -eq 1 ]; then
+                        echo "DEBUG: Invalid HTTP code from file, content: $(cat "$http_code_file")" >&2
+                    fi
+                    http_code="000"
                 fi
+                rm -f "$http_code_file"
             fi
-            
-            # Move temp file to the expected name if it was created
-            if [ -f "$temp_file_attempt" ]; then
-                mv "$temp_file_attempt" "$temp_file" 2>/dev/null || cp "$temp_file_attempt" "$temp_file" 2>/dev/null || temp_file="$temp_file_attempt"
-            fi
-            
-            # Clean up
-            rm -f "$curl_stderr_file" "$http_code_file" "$temp_file_attempt"
             
             if [ $DEBUG_DATA -eq 1 ]; then
                 echo "DEBUG: Curl exit code: $curl_exit_code" >&2
