@@ -15,6 +15,14 @@ CATEGORY=1
 CURRENT_DIR=$(pwd 2>/dev/null || echo ".")
 POSITIONS_FILE="${CURRENT_DIR}/temp/positions_${CATEGORY}.txt"
 
+#check if bsdtar is installed
+if ! command -v bsdtar >/dev/null 2>&1; then
+    echo -e "\033[0;31mError: bsdtar is not installed. Please install it.\033[0m" >&2
+    exit 1
+else 
+    echo "bsdtar is installed"
+fi
+
 # Check if current directory is writable
 if [ ! -w "${CURRENT_DIR}" ]; then
     echo -e "\033[0;31mError: Current directory '${CURRENT_DIR}' is not writable. Check permissions.\033[0m" >&2
@@ -180,6 +188,24 @@ send_to_telegram() {
     fi
     echo ""
     echo "--------------------------------"
+}
+
+# Function to URL encode a string
+urlencode() {
+    local string="${1}"
+    local strlen=${#string}
+    local encoded=""
+    local pos c o
+
+    for (( pos=0 ; pos<strlen ; pos++ )); do
+        c=${string:$pos:1}
+        case "$c" in
+            [-_.~a-zA-Z0-9] ) o="${c}" ;;
+            * ) printf -v o '%%%02x' "'$c"
+        esac
+        encoded+="${o}"
+    done
+    echo "${encoded}"
 }
 
 # Function to update the global COOKIES variable from the cookie file and EXTRA_COOKIES
@@ -599,7 +625,12 @@ get_ids() {
                         local ad_date=$(echo "$card_block" | grep -zoP '<div class="card-footer">[\s\S]*?<div>\s*\K[0-9]+ [A-Za-z]+ [0-9]+(?=\s*</div>)' | tr -d '\0' | sed 's/^[ \t]*//;s/[ \t]*$//')
                         
                         # Format as a single string and add to list
-                        local ad_data="ID:$ad_id | DESC:$ad_desc | IMG:$ad_img | COUNTRY:$ad_country | DATE:$ad_date"
+                        # URL encode variables to handle special characters safely
+                        local ad_desc_encoded=$(urlencode "$ad_desc")
+                        local ad_img_encoded=$(urlencode "$ad_img")
+                        local ad_country_encoded=$(urlencode "$ad_country")
+                        local ad_date_encoded=$(urlencode "$ad_date")
+                        local ad_data="ID:$ad_id | DESC:$ad_desc_encoded | IMG:$ad_img_encoded | COUNTRY:$ad_country_encoded | DATE:$ad_date_encoded"
                         ADS_DATA_LIST+=("$ad_data")
                         echo "  - Extracted: $ad_data"
                     done
@@ -877,13 +908,12 @@ count_keyword_frequency() {
 #echo "old COOKIES: ${COOKIES}"
 #login
 #echo "new COOKIES:  ${COOKIES}"
-echo "---------- GET ids"
+
 get_ids
 get_ids_exit_code=$?
 if [ $get_ids_exit_code -ne 0 ]; then
     echo -e "\033[0;31mWarning: get_ids function returned with error code $get_ids_exit_code\033[0m" >&2
 fi
-echo "---------- AFTER ids"
 
 echo "Total IDs found: ${#IDS_LIST[@]}"
 if [ $DEBUG_DATA -eq 1 ]; then
