@@ -40,10 +40,7 @@ if [ ! -w "${CURRENT_DIR}/temp" ]; then
     echo -e "\033[0;31mError: Temp directory '${CURRENT_DIR}/temp' is not writable. Check permissions.\033[0m" >&2
     exit 1
 fi
-touch "$POSITIONS_FILE" || {
-    echo "Error: Failed to create positions file" >&2
-    exit 1
-}
+
 rm -f "${CURRENT_DIR}/temp/page_response_*.html"
 rm -f "${CURRENT_DIR}/temp/page_response_*.bin"
 rm -f "${CURRENT_DIR}/temp/page_response_*.txt"
@@ -63,6 +60,10 @@ while getopts "c:l:dt:q:u:p:h" opt; do
 done
 
 POSITIONS_FILE="${CURRENT_DIR}/temp/positions_${CATEGORY}.txt"
+touch "$POSITIONS_FILE" || {
+    echo "Error: Failed to create positions file" >&2
+    exit 1
+}
 
 if [ "$DEBUG_DATA" -eq 1 ]; then
     echo "Debug data is enabled"
