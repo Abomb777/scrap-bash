@@ -13,7 +13,6 @@ DELAY_SECONDS=2
 CATEGORY=1
 # Get current directory, fallback to . if pwd fails (can happen when piped)
 CURRENT_DIR=$(pwd 2>/dev/null || echo ".")
-POSITIONS_FILE="${CURRENT_DIR}/temp/positions_${CATEGORY}.txt"
 
 #check if bsdtar is installed
 if ! command -v bsdtar >/dev/null 2>&1; then
@@ -62,6 +61,8 @@ while getopts "c:l:dt:q:u:p:h" opt; do
         *) echo "Invalid option: -$OPTARG" >&2; exit 1;;
     esac
 done
+
+POSITIONS_FILE="${CURRENT_DIR}/temp/positions_${CATEGORY}.txt"
 
 if [ "$DEBUG_DATA" -eq 1 ]; then
     echo "Debug data is enabled"
