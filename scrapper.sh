@@ -505,7 +505,7 @@ get_ids() {
                     # First, we get the indices of each card start
                     local card_starts=($(grep -n '<a href="https://${DOMAIN}/viewer/[0-9]\+/view"' ${TEMP_FILES_PREFIX}$$.txt | cut -d: -f1))
                     local total_lines=$(wc -l < ${TEMP_FILES_PREFIX}$$.txt)
-                    
+                    echo "1"
                     for idx in "${!card_starts[@]}"; do
                         local start_line=${card_starts[$idx]}
                         local end_line=$total_lines
@@ -528,7 +528,7 @@ get_ids() {
                         ADS_DATA_LIST+=("$ad_data")
                         echo "  - Extracted: $ad_data"
                     done
-                    
+                    echo "12"
                     success=1
                 else                   
                     # Check if we got redirected to login page (session expired)
@@ -563,13 +563,14 @@ get_ids() {
                         echo "Failed to get IDs from page $i after $MAX_ATTEMPTS attempts"
                     fi
                 fi
+                echo "123"
             else
                 echo "Error: Failed to load page $i (HTTP status: $http_code, curl exit code: $?)"
                 if [ $attempt -eq $MAX_ATTEMPTS ]; then
                     echo "Failed to load page $i after $MAX_ATTEMPTS attempts"
                 fi
             fi
-            
+            echo "1234"
             # Clean up temp file
             rm -f ${TEMP_FILES_PREFIX}$$.txt
             
@@ -580,6 +581,7 @@ get_ids() {
                 fi
             fi
         done
+        echo "12345"
     done
     if [[ "$DEBUG_MODE" -eq 1 ]]; then
         echo "--------------DONE ToTAL IDS: ${#IDS_LIST[@]}------------------"
