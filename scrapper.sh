@@ -590,9 +590,6 @@ get_ids() {
         echo "--------------DONE ToTAL IDS: ${#IDS_LIST[@]}------------------"
     fi
     echo "IDS_LIST: ${IDS_LIST[@]}"
-    echo "ADS_DATA_LIST: ${ADS_DATA_LIST[@]}"
-    echo "KEYWORDS_LIST: ${KEYWORDS_LIST[@]}"
-    echo "UNIQUE_KEYWORDS_LIST: ${UNIQUE_KEYWORDS_LIST[@]}"
     echo "SKIP_KEYWORDS_LIST: ${SKIP_KEYWORDS_LIST[@]}"
 }
 
