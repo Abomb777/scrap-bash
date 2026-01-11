@@ -15,10 +15,23 @@ CATEGORY=1
 CURRENT_DIR=$(pwd 2>/dev/null || echo ".")
 POSITIONS_FILE="${CURRENT_DIR}/temp/positions_${CATEGORY}.txt"
 
+# Check if current directory is writable
+if [ ! -w "${CURRENT_DIR}" ]; then
+    echo -e "\033[0;31mError: Current directory '${CURRENT_DIR}' is not writable. Check permissions.\033[0m" >&2
+    exit 1
+fi
+
+# Create temp directory
 mkdir -p "${CURRENT_DIR}/temp" || {
-    echo "Error: Failed to create temp directory" >&2
+    echo -e "\033[0;31mError: Failed to create temp directory '${CURRENT_DIR}/temp'. Check permissions.\033[0m" >&2
     exit 1
 }
+
+# Verify temp directory is writable
+if [ ! -w "${CURRENT_DIR}/temp" ]; then
+    echo -e "\033[0;31mError: Temp directory '${CURRENT_DIR}/temp' is not writable. Check permissions.\033[0m" >&2
+    exit 1
+fi
 touch "$POSITIONS_FILE" || {
     echo "Error: Failed to create positions file" >&2
     exit 1
