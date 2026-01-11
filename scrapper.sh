@@ -581,6 +581,9 @@ get_ids() {
             fi
         done
     done
+    if [[ "$DEBUG_MODE" -eq 1 ]]; then
+        echo "--------------DONE ToTAL IDS: ${#IDS_LIST[@]}------------------"
+    fi
 }
 
 # Function to get keywords from IDs
