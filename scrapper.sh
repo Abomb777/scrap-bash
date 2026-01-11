@@ -792,8 +792,9 @@ count_keyword_frequency() {
 #echo "old COOKIES: ${COOKIES}"
 #login
 #echo "new COOKIES:  ${COOKIES}"
-
+echo "---------- GET ids"
 get_ids
+echo "---------- AFTER ids"
 
 echo "Total IDs found: ${#IDS_LIST[@]}"
 if [ $DEBUG_DATA -eq 1 ]; then
