@@ -11,13 +11,14 @@ DEBUG_DATA=0
 MAX_PAGES_BACK=2
 DELAY_SECONDS=2
 CATEGORY=1
-POSITIONS_FILE="./temp/positions_${CATEGORY}.txt"
+CURRENT_DIR=$(pwd)
+POSITIONS_FILE="${CURRENT_DIR}/temp/positions_${CATEGORY}.txt"
 
-mkdir -p ./temp
+mkdir -p ${CURRENT_DIR}/temp
 touch $POSITIONS_FILE
-rm -f ./temp/page_response_*.html
-rm -f ./temp/page_response_*.bin
-rm -f ./temp/page_response_*.txt
+rm -f ${CURRENT_DIR}/temp/page_response_*.html
+rm -f ${CURRENT_DIR}/temp/page_response_*.bin
+rm -f ${CURRENT_DIR}/temp/page_response_*.txt
 
 while getopts "c:l:dt:q:u:p:h" opt; do
     case $opt in
