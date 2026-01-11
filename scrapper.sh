@@ -144,7 +144,8 @@ send_to_telegram() {
                 if [ -f "$temp_image_file" ] && [ -s "$temp_image_file" ]; then
                     # Send with image using multipart/form-data
                     # URL encode the message for the caption to handle special characters
-                    local message_encoded=$(urlencode "$message")
+                    #local message_encoded=$(urlencode "$message")
+                    local message_encoded=$(htmlencode "$message")
                     result=$($CURL_CMD -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendPhoto" \
                         -F "chat_id=${chat_id}" \
                         -F "photo=@${temp_image_file}" \
@@ -190,6 +191,12 @@ send_to_telegram() {
     fi
     echo ""
     echo "--------------------------------"
+}
+
+htmlencode() {
+    local string="${1}"
+    local encoded=$(echo "$string" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g; s/'"'"'/\&apos;/g')
+    echo "${encoded}"
 }
 
 # Function to URL encode a string
