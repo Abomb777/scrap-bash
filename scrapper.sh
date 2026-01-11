@@ -504,7 +504,7 @@ get_ids() {
                     # Extra code to read structured data (id, description, img_url, country, date)
                     # We process the file card by card
                     # First, we get the indices of each card start
-                    local card_starts=($(grep -n '<a href="https://${DOMAIN}/viewer/[0-9]\+/view"' ${TEMP_FILES_PREFIX}$$.txt | cut -d: -f1))
+                    local card_starts=($(grep -n "<a href=\"https://${DOMAIN}/viewer/[0-9]\+/view\"" ${TEMP_FILES_PREFIX}$$.txt | cut -d: -f1))
                     local total_lines=$(wc -l < ${TEMP_FILES_PREFIX}$$.txt)
                     echo "1"
                     for idx in "${!card_starts[@]}"; do
@@ -547,12 +547,24 @@ get_ids() {
                             # Re-authenticate using login function (will fetch CSRF token)
                             login
                         fi
-                        if [ $? -eq 0 ]; then
+                        local login_result=$?
+                        if [ $login_result -eq 0 ]; then
                             echo "Re-authentication successful, retrying page $i"
                             # Don't increment attempt, retry immediately with new cookies
                             continue
                         else
-                            echo "Re-authentication failed"
+                            echo -e "\033[0;31mRe-authentication failed\033[0m"
+                            # If login fails and we have empty credentials, break out to avoid infinite loop
+                            if [ -z "$LOGIN_EMAIL" ] || [ -z "$LOGIN_PASSWD" ]; then
+                                echo -e "\033[0;31mError: Login credentials are empty. Cannot re-authenticate. Exiting.\033[0m"
+                                return 1
+                            fi
+                            # Increment attempt counter to avoid infinite loop
+                            attempt=$((attempt + 1))
+                            if [ $attempt -gt $MAX_ATTEMPTS ]; then
+                                echo -e "\033[0;31mError: Failed to authenticate after $MAX_ATTEMPTS attempts. Exiting.\033[0m"
+                                return 1
+                            fi
                         fi
                     else
                         echo "Error: Page $i loaded (HTTP $http_code) but no IDs found"
@@ -793,7 +805,7 @@ count_keyword_frequency() {
 #login
 #echo "new COOKIES:  ${COOKIES}"
 echo "---------- GET ids"
-get_ids
+get_ids || echo "Warning: get_ids function returned with error code $?"
 echo "---------- AFTER ids"
 
 echo "Total IDs found: ${#IDS_LIST[@]}"
