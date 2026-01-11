@@ -1,11 +1,12 @@
 #!/bin/bash
+
 LOGIN_EMAIL=$1
 LOGIN_PASSWD=$2
 DOMAIN=$3
 TG_BOT_TOKEN=$4
 TG_BOT_CHANEL=$5
 
-DEBUG_DATA=0
+DEBUG_DATA=false
 MAX_PAGES_BACK=2
 DELAY_SECONDS=2
 
@@ -16,6 +17,20 @@ touch $POSITIONS_FILE
 rm -f ./temp/page_response_*.html
 rm -f ./temp/page_response_*.bin
 rm -f ./temp/page_response_*.txt
+
+while getopts "c?:u:d?:t:q:u:p:h" opt; do
+    case $opt in
+        c) CATEGORY=$OPTARG ;;
+        u) DOMAIN=$OPTARG ;;
+        d) DEBUG_DATA=true; echo "Debug data is enabled" ;;
+        t) TG_BOT_TOKEN=$OPTARG ;;
+        q) TG_BOT_CHANEL=$OPTARG ;;
+        u) LOGIN_EMAIL=$OPTARG ;;
+        p) LOGIN_PASSWD=$OPTARG ;;
+        h) echo "Usage: $0 -c <category> -u <domain> -d <debug_data> -t <tg_bot_token> -q <tg_bot_chanel> -u <login_email> -p <login_password> -h <help>" ;;
+        *) echo "Invalid option: -$OPTARG" ;;
+    esac
+done
 
 echo "loading...";
 LINK_URL="https://${DOMAIN}/?adType=${CATEGORY}"
@@ -64,7 +79,7 @@ else
 fi
 
 send_to_telegram() {
-echo "Delaying for $DELAY_SECONDS seconds..."
+    echo "Delaying for $DELAY_SECONDS seconds..."
     sleep $DELAY_SECONDS
 
     local message="$1"
@@ -195,6 +210,7 @@ login() {
         echo "Using provided CSRF token"
         csrf_token="$provided_csrf_token"
     else
+        echo "Fetching CSRF token from login page"
         # Fetch the login page to extract CSRF token and initial cookies
         # Use -b and -c to handle session state, and EXTRA_COOKIES for consistency
         local login_page_response=$($CURL_CMD -s -b "$COOKIES_FILE" -c "$COOKIES_FILE" "https://${DOMAIN}/login" \
