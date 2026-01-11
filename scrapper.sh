@@ -492,7 +492,8 @@ get_ids() {
             # Get HTTP status code and response body
             # -L flag follows redirects (e.g., 302)
             # -b reads initial cookies, -c updates the file with any Set-Cookie from response
-            local http_code=$($CURL_CMD -s -L -b "$COOKIES_FILE" -c "$COOKIES_FILE" -o ${TEMP_FILES_PREFIX}$$.txt -w "%{http_code}" "$SCANURL" \
+            local temp_file="${TEMP_FILES_PREFIX}$$.txt"
+            local http_code=$($CURL_CMD -s -L -b "$COOKIES_FILE" -c "$COOKIES_FILE" -o "$temp_file" -w "%{http_code}" "$SCANURL" \
           -H "$HEADER_ACCEPT" \
           -H "$HEADER_ACCEPT_LANGUAGE" \
           -H "$HEADER_CACHE_CONTROL" \
@@ -515,8 +516,14 @@ get_ids() {
             
             # Check if curl was successful and HTTP status is OK
             if [ $? -eq 0 ] && [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+                # Verify the file was created
+                if [ ! -f "$temp_file" ]; then
+                    echo -e "\033[0;31mError: Temp file was not created: $temp_file\033[0m" >&2
+                    attempt=$((attempt + 1))
+                    continue
+                fi
                 # Extract IDs from response
-                newids=($(grep -oP '/viewer/\K[0-9]+(?=/view)' ${TEMP_FILES_PREFIX}$$.txt))
+                newids=($(grep -oP '/viewer/\K[0-9]+(?=/view)' "$temp_file"))
                 
                 # Check if we got any IDs
                 if [ ${#newids[@]} -gt 0 ]; then
@@ -528,8 +535,8 @@ get_ids() {
                     # Extra code to read structured data (id, description, img_url, country, date)
                     # We process the file card by card
                     # First, we get the indices of each card start
-                    local card_starts=($(grep -n "<a href=\"https://${DOMAIN}/viewer/[0-9]\+/view\"" ${TEMP_FILES_PREFIX}$$.txt | cut -d: -f1))
-                    local total_lines=$(wc -l < ${TEMP_FILES_PREFIX}$$.txt)
+                    local card_starts=($(grep -n "<a href=\"https://${DOMAIN}/viewer/[0-9]\+/view\"" "$temp_file" | cut -d: -f1))
+                    local total_lines=$(wc -l < "$temp_file")
                     for idx in "${!card_starts[@]}"; do
                         local start_line=${card_starts[$idx]}
                         local end_line=$total_lines
@@ -538,7 +545,7 @@ get_ids() {
                         fi
                         
                         # Extract the card block
-                        local card_block=$(sed -n "${start_line},${end_line}p" ${TEMP_FILES_PREFIX}$$.txt)
+                        local card_block=$(sed -n "${start_line},${end_line}p" "$temp_file")
                         
                         # Extract fields using PCRE grep -oP
                         local ad_id=$(echo "$card_block" | grep -oP '/viewer/\K[0-9]+(?=/view)' | head -1)
@@ -555,11 +562,11 @@ get_ids() {
                     success=1
                 else                   
                     # Check if we got redirected to login page (session expired)
-                    if grep -q "Login to your account" ${TEMP_FILES_PREFIX}$$.txt; then
+                    if grep -q "Login to your account" "$temp_file"; then
                         echo "Session expired - re-authenticating..."
-                        cat ${TEMP_FILES_PREFIX}$$.txt;
+                        cat "$temp_file";
                         # Extract CSRF token from the login page if available
-                        local csrf_token=$(grep -oP 'name="_token" value="\K[^"]+' ${TEMP_FILES_PREFIX}$$.txt)
+                        local csrf_token=$(grep -oP 'name="_token" value="\K[^"]+' "$temp_file")
                         if [ -n "$csrf_token" ]; then
                             echo "Found CSRF token in response, using it for login"
                             # Re-authenticate using login function with the extracted CSRF token
@@ -591,7 +598,11 @@ get_ids() {
                     else
                         echo "Error: Page $i loaded (HTTP $http_code) but no IDs found"
                         echo "Returned HTML:";
-                        cat ${TEMP_FILES_PREFIX}$$.txt;
+                        if [ -f "$temp_file" ]; then
+                            cat "$temp_file";
+                        else
+                            echo "Error: Temp file not found: $temp_file"
+                        fi
                     fi
                     
                     if [ $attempt -eq $MAX_ATTEMPTS ]; then
@@ -605,7 +616,7 @@ get_ids() {
                 fi
             fi
             # Clean up temp file
-            rm -f ${TEMP_FILES_PREFIX}$$.txt
+            rm -f "$temp_file"
             
             if [ $success -eq 0 ]; then
                 attempt=$((attempt + 1))
