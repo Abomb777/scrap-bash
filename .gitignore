@@ -118,4 +118,4 @@ dist
 secrets
 hash/*
 temp/*
-.txt
+*.txt
