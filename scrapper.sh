@@ -493,32 +493,75 @@ get_ids() {
             # -L flag follows redirects (e.g., 302)
             # -b reads initial cookies, -c updates the file with any Set-Cookie from response
             local temp_file="${TEMP_FILES_PREFIX}$$.txt"
-            local http_code=$($CURL_CMD -s -L -b "$COOKIES_FILE" -c "$COOKIES_FILE" -o "$temp_file" -w "%{http_code}" "$SCANURL" \
-          -H "$HEADER_ACCEPT" \
-          -H "$HEADER_ACCEPT_LANGUAGE" \
-          -H "$HEADER_CACHE_CONTROL" \
-          -H "$HEADER_PRAGMA" \
-          -H "$HEADER_PRIORITY" \
-          -H "referer: https://${DOMAIN}/" \
-          -H "$HEADER_SEC_CH_UA" \
-          -H "$HEADER_SEC_CH_UA_MOBILE" \
-          -H "$HEADER_SEC_CH_UA_PLATFORM" \
-          -H "$HEADER_SEC_FETCH_DEST" \
-          -H "$HEADER_SEC_FETCH_MODE" \
-          -H "$HEADER_SEC_FETCH_SITE" \
-          -H "$HEADER_SEC_FETCH_USER" \
-          -H "$HEADER_UPGRADE_INSECURE_REQUESTS" \
-          -H "$HEADER_USER_AGENT" \
-          -H "Cookie: $EXTRA_COOKIES")
+            if [ $DEBUG_DATA -eq 1 ]; then
+                echo "DEBUG: Temp file path: $temp_file" >&2
+                echo "DEBUG: Cookies file: $COOKIES_FILE" >&2
+                echo "DEBUG: URL: $SCANURL" >&2
+            fi
+            
+            # Run curl and capture both exit code and HTTP status
+            # curl -w writes HTTP code to stdout AFTER -o writes body to file
+            # So we need to capture stdout separately
+            local http_code_file="${TEMP_FILES_PREFIX}$$_httpcode.txt"
+            local http_code="000"
+            local curl_exit_code=0
+            
+            # Run curl: body goes to temp_file (-o), HTTP code goes to stdout (-w), errors to stderr
+            # We redirect stdout (HTTP code) to http_code_file, stderr to see errors
+            $CURL_CMD -s -L -b "$COOKIES_FILE" -c "$COOKIES_FILE" \
+              -o "$temp_file" \
+              -w "%{http_code}" \
+              "$SCANURL" \
+              -H "$HEADER_ACCEPT" \
+              -H "$HEADER_ACCEPT_LANGUAGE" \
+              -H "$HEADER_CACHE_CONTROL" \
+              -H "$HEADER_PRAGMA" \
+              -H "$HEADER_PRIORITY" \
+              -H "referer: https://${DOMAIN}/" \
+              -H "$HEADER_SEC_CH_UA" \
+              -H "$HEADER_SEC_CH_UA_MOBILE" \
+              -H "$HEADER_SEC_CH_UA_PLATFORM" \
+              -H "$HEADER_SEC_FETCH_DEST" \
+              -H "$HEADER_SEC_FETCH_MODE" \
+              -H "$HEADER_SEC_FETCH_SITE" \
+              -H "$HEADER_SEC_FETCH_USER" \
+              -H "$HEADER_UPGRADE_INSECURE_REQUESTS" \
+              -H "$HEADER_USER_AGENT" \
+              -H "Cookie: $EXTRA_COOKIES" > "$http_code_file" 2>&1
+            curl_exit_code=$?
+            
+            # Read HTTP code from the file (last 3 characters should be the HTTP code)
+            if [ -f "$http_code_file" ]; then
+                http_code=$(cat "$http_code_file" | tr -d '\n\r' | tail -c 3)
+                # If http_code is empty or not 3 digits, it might be an error message
+                if [ ${#http_code} -ne 3 ] || ! [[ "$http_code" =~ ^[0-9]{3}$ ]]; then
+                    if [ $DEBUG_DATA -eq 1 ]; then
+                        echo "DEBUG: Invalid HTTP code from file, content: $(cat "$http_code_file")" >&2
+                    fi
+                    http_code="000"
+                fi
+                rm -f "$http_code_file"
+            fi
+            
+            if [ $DEBUG_DATA -eq 1 ]; then
+                echo "DEBUG: Curl exit code: $curl_exit_code" >&2
+                echo "DEBUG: HTTP code: $http_code" >&2
+                if [ -f "$temp_file" ]; then
+                    local file_size=$(stat -c%s "$temp_file" 2>/dev/null || stat -f%z "$temp_file" 2>/dev/null || wc -c < "$temp_file" 2>/dev/null || echo "0")
+                    echo "DEBUG: Temp file exists, size: $file_size bytes" >&2
+                else
+                    echo "DEBUG: Temp file does NOT exist" >&2
+                fi
+            fi
             
             # Update the global COOKIES variable from the updated file
             update_cookies_from_file
             
             # Check if curl was successful and HTTP status is OK
-            if [ $? -eq 0 ] && [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+            if [ $curl_exit_code -eq 0 ] && [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
                 # Verify the file was created
                 if [ ! -f "$temp_file" ]; then
-                    echo -e "\033[0;31mError: Temp file was not created: $temp_file\033[0m" >&2
+                    echo -e "\033[0;31mError: Temp file was not created: $temp_file (HTTP: $http_code, Curl exit: $curl_exit_code)\033[0m" >&2
                     attempt=$((attempt + 1))
                     continue
                 fi
