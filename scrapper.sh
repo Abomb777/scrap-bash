@@ -581,8 +581,10 @@ get_ids() {
 
 # Function to get keywords from IDs
 # Populates the global KEYWORDS_LIST array
+# If an ID is provided as argument, processes only that ID (for retry)
 get_keywords() {
-    for id in ${IDS_LIST[@]}; do
+    local target_ids=("${@:-${IDS_LIST[@]}}")
+    for id in "${target_ids[@]}"; do
         echo "Processing ID: ${id}"
         if [ $id -le $LAST_SENT_ID ]; then
             echo "ID $id already sent, skipping"
@@ -654,13 +656,15 @@ get_keywords() {
                 update_cookies_from_file
                 # Check if we still got a login page after re-authentication
                 if grep -q "Login to your account" ${zip_file}; then
-                    echo "Error: Still getting login page after re-authentication, skipping ID $id"
+                    echo -e "\033[0;31mError: Still getting login page after re-authentication, retrying function for ID $id\033[0m"
                     rm -f "$zip_file" "$html_file"
+                    get_keywords "$id"
                     continue
                 fi
             else
-                echo "Re-authentication failed, skipping ID $id"
+                echo -e "\033[0;31mRe-authentication failed, retrying function for ID $id\033[0m"
                 rm -f "$zip_file" "$html_file"
+                get_keywords "$id"
                 continue
             fi
         fi
