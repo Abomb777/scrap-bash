@@ -526,12 +526,12 @@ get_ids() {
                 echo "Retry attempt $attempt of $MAX_ATTEMPTS for page $i"
             fi
             
-            echo "DEBUG: TEMP FILES PREFIX: ${TEMP_FILES_PREFIX}"
             # Get HTTP status code and response body
             # -L flag follows redirects (e.g., 302)
             # -b reads initial cookies, -c updates the file with any Set-Cookie from response
             local temp_file="${TEMP_FILES_PREFIX}$$.txt"
             if [ $DEBUG_DATA -eq 1 ]; then
+                echo "DEBUG: TEMP FILES PREFIX: ${TEMP_FILES_PREFIX}"
                 echo "DEBUG: Temp file path: $temp_file" >&2
                 echo "DEBUG: Cookies file: $COOKIES_FILE" >&2
                 echo "DEBUG: URL: $SCANURL" >&2
@@ -721,6 +721,24 @@ get_ids() {
     return 0
 }
 
+# Function to extract keywords from HTML file
+# Takes html_file path as parameter
+# Returns keywords array via stdout (one keyword per line)
+extract_kw() {
+    local html_file="$1"
+    # Extract all link texts from the HTML (handling strings with multiple words, trimming whitespace and quotes)
+    local atags_array=()
+    readarray -t atags_array < <(grep -oP '<a\b[^>]*>\K[^<]+(?=</a>)' "$html_file" | sed -E "s/^[[:space:]\"\“\”\‘\’\']+|[[:space:]\"\“\”\‘\’\']+$//g" | grep -v '^$')
+    # Extract paragraphs and get only the first word from each
+    local paragraphs_array=()
+    readarray -t paragraphs_array < <(grep -oP '<p\b[^>]*>\K[^<]+(?=</p>)' "$html_file" | sed -E "s/^[[:space:]\"\“\”\‘\’\']+|[[:space:]\"\“\”\‘\’\']+$//g" | grep -v '^$' | awk '{print $1}')
+    # Merge both arrays
+    local merged_array=("${atags_array[@]}" "${paragraphs_array[@]}")
+    
+    # Output merged array, one element per line
+    printf '%s\n' "${merged_array[@]}"
+}
+
 # Function to get keywords from IDs
 # Populates the global KEYWORDS_LIST array
 # If an ID is provided as argument, processes only that ID (for retry)
@@ -836,8 +854,8 @@ get_keywords() {
                 fi
             done
         fi
-        # Extract all link texts from the HTML (handling strings with multiple words, trimming whitespace and quotes)
-        readarray -t keywords < <(grep -oP '<a\b[^>]*>\K[^<]+(?=</a>)' "$html_file" | sed -E "s/^[[:space:]\"\“\”\‘\’\']+|[[:space:]\"\“\”\‘\’\']+$//g" | grep -v '^$')
+        # Extract keywords from HTML file using extract_kw function
+        readarray -t keywords < <(extract_kw "$html_file")
         
         if [ ${#keywords[@]} -gt 0 ]; then
             echo "Keywords found: ${#keywords[@]}"
