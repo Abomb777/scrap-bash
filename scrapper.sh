@@ -43,9 +43,11 @@ fi
 
 rm -f "${CURRENT_DIR}/temp/page_response_*.html"
 rm -f "${CURRENT_DIR}/temp/page_response_*.bin"
+rm -f "${CURRENT_DIR}/temp/page_response_*.png"
+rm -f "${CURRENT_DIR}/temp/page_response_*.zip"
 rm -f "${CURRENT_DIR}/temp/page_response_*.txt"
 
-while getopts "c:l:dt:q:u:p:h" opt; do
+while getopts "c:l:dt:q:u:p:w:h" opt; do
     case $opt in
         c) CATEGORY=$OPTARG ;;
         l) DOMAIN=$OPTARG ;;
@@ -54,7 +56,8 @@ while getopts "c:l:dt:q:u:p:h" opt; do
         q) TG_BOT_CHANNEL=$OPTARG ;;
         u) LOGIN_EMAIL=$OPTARG ;;
         p) LOGIN_PASSWD=$OPTARG ;;
-        h) echo "Usage: $0 -c <category> -l <domain> -d -t <tg_bot_token> -q <tg_bot_channel> -u <login_email> -p <login_password> -h"; exit 0;;
+        w) MAX_PAGES_BACK=$OPTARG ;;
+        h) echo "Usage: $0 -c <category> -l <domain> -d -t <tg_bot_token> -q <tg_bot_channel> -u <login_email> -p <login_password> -w <max_pages_back> -h"; exit 0;;
         *) echo "Invalid option: -$OPTARG" >&2; exit 1;;
     esac
 done
@@ -74,6 +77,7 @@ if [ "$DEBUG_DATA" -eq 1 ]; then
     echo "TG Bot Channel: $TG_BOT_CHANNEL"
     echo "Login Email: $LOGIN_EMAIL"
     echo "Login Password: $LOGIN_PASSWD"
+    echo "Max Pages Back: $MAX_PAGES_BACK"
     echo "------------------------------------------"
 else
     echo "Debug data is disabled"
@@ -127,65 +131,294 @@ else
     CURL_CMD="curl"
 fi
 
+nl2nlll() {
+    local string="${1}"
+    # Replace newlines and carriage returns with URL-encoded equivalents
+    # Use printf to preserve the string, then use tr to replace actual newline/carriage return characters
+    # Use control characters (\001 and \002) as temporary placeholders that won't appear in normal text
+    local encoded=$(printf '%s' "$string" | tr '\r' '\001' | tr '\n' '\002' | sed 's/\001/%0D/g; s/\002/%0A/g')
+    echo "${encoded}"
+}
+
 send_to_telegram() {
     echo "Delaying for $DELAY_SECONDS seconds..."
     sleep $DELAY_SECONDS
 
     local message="$1"
     local chat_id="$2"
-    local image_url="$3"
+    local image_url="${3:-}"  # Optional: URL to image to download and send
+    local zip_file="${4:-}"   # Optional: Path to zip file to send as document
+
+    # For JSON in Telegram API, we need to escape JSON special characters
+    # The message may contain HTML entities (like &#039;) which should be preserved
+    # Escape: backslashes, double quotes, and convert newlines to \n
+    # Use jq if available for proper JSON escaping, otherwise use sed
+    if command -v jq >/dev/null 2>&1; then
+        # jq properly escapes JSON strings
+        message_encoded=$(printf '%s' "$message" | jq -Rs . | sed 's/^"//; s/"$//')
+    else
+        # Manual escaping: escape backslashes first, then quotes, then handle newlines
+        # Use printf to preserve all characters, then escape
+        message_encoded=$(printf '%s' "$message" | \
+            sed 's/\\/\\\\/g' | \
+            sed 's/"/\\"/g' | \
+            awk 'BEGIN{RS="";ORS=""} {gsub(/\r/,""); gsub(/\n/,"\\n"); print}')
+    fi
     
+    local temp_image_file=""
+    local image_base64=""
+    local media_items=()
+    
+    # Download and process image if URL is provided
+    local has_photo=false
     if [ -n "$image_url" ]; then
-        local image_base64=$(image_download "$image_url")
+        image_base64=$(image_download "$image_url")
         if [ -n "$image_base64" ]; then
-            # Telegram API requires multipart/form-data, so decode base64 back to temp file
-            local temp_image_file="${TEMP_FILES_PREFIX}$$.telegram_img.bin"
-            # Try decoding with error handling
+            temp_image_file="${TEMP_FILES_PREFIX}$$.telegram_img.png"
+            # Decode base64 to temp file
             if echo "$image_base64" | base64 -d > "$temp_image_file" 2>/dev/null; then
-                # Check if decoded file is valid and not empty
                 if [ -f "$temp_image_file" ] && [ -s "$temp_image_file" ]; then
-                    # Send with image using multipart/form-data
-                    # URL encode the message for the caption to handle special characters
-                    #local message_encoded=$(urlencode "$message")
-                    local message_encoded=$(htmlencode "$message")
-                    result=$($CURL_CMD -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendPhoto" \
-                        -F "chat_id=${chat_id}" \
-                        -F "photo=@${temp_image_file}" \
-                        -F "parse_mode=HTML" \
-                        -F "caption=${message_encoded}")
+                    media_items+=("{\"type\":\"photo\",\"media\":\"attach://photo\"}")
+                    has_photo=true
                 else
-                    echo "Warning: Decoded image file is empty or invalid, sending text only" >&2
-                    result=$($CURL_CMD -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
-                        -d "chat_id=${chat_id}" \
-                        --data-urlencode "parse_mode=HTML" \
-                        --data-urlencode "text=${message}")
+                    rm -f "$temp_image_file"
+                    temp_image_file=""
                 fi
             else
-                echo "Warning: Failed to decode base64 image data, sending text only" >&2
-                result=$($CURL_CMD -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
-                    -d "chat_id=${chat_id}" \
-                    --data-urlencode "parse_mode=HTML" \
-                    --data-urlencode "text=${message}")
+                temp_image_file=""
             fi
-            
-            # Clean up the temporary file
-            rm -f "$temp_image_file"
+        fi
+    fi
+    
+    # Add document if zip_file is provided
+    local has_document=false
+    if [ -n "$zip_file" ] && [ -f "$zip_file" ]; then
+        media_items+=("{\"type\":\"document\",\"media\":\"attach://document\"}")
+        has_document=true
+    fi
+    
+    # Telegram doesn't allow mixing document with photo in media group
+    # If we have both, send both as documents in a media group (one message)
+    if [ "$has_photo" = true ] && [ "$has_document" = true ]; then
+        # Send both photo and zip as documents in a media group
+        echo "DEBUG: Mixed media types detected, sending both as documents in media group" >&2
+        
+        # Build JSON dynamically based on which files exist (both are optional)
+        # Escape the message for JSON: backslashes, quotes, newlines, carriage returns
+        local caption_escaped=""
+        if command -v awk >/dev/null 2>&1; then
+            # awk can handle newlines properly - use RS="" to read entire input, then replace newlines
+            caption_escaped=$(printf '%s' "$message" | awk 'BEGIN{RS="";ORS=""} {gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); gsub(/\r/, ""); gsub(/\n/, "\\n"); print}')
         else
-            # If image download failed, send text only
-            echo "Warning: Failed to download image, sending text only" >&2
-            result=$($CURL_CMD -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
-                -d "chat_id=${chat_id}" \
-                --data-urlencode "parse_mode=HTML" \
-                --data-urlencode "text=${message}")
+            # Fallback: use tr to convert newlines to a placeholder, then sed, then convert back
+            caption_escaped=$(printf '%s' "$message" | tr '\n' '\001' | tr '\r' '\002' | sed 's/\\/\\\\/g; s/"/\\"/g; s/\001/\\n/g; s/\002//g')
+        fi
+        
+        # Build JSON array dynamically based on available files
+        local media_json="["
+        local file_counter=1
+        local first_item=true
+        
+        # Add image file if it exists
+        if [ -n "$temp_image_file" ] && [ -f "$temp_image_file" ]; then
+            if [ "$first_item" = true ]; then
+                media_json="${media_json}{\"type\":\"document\",\"media\":\"attach://file${file_counter}\",\"caption\":\"${caption_escaped}\",\"parse_mode\":\"HTML\"}"
+                first_item=false
+            else
+                media_json="${media_json},{\"type\":\"document\",\"media\":\"attach://file${file_counter}\"}"
+            fi
+            file_counter=$((file_counter + 1))
+        fi
+        
+        # Add zip file if it exists
+        if [ -n "$zip_file" ] && [ -f "$zip_file" ]; then
+            if [ "$first_item" = true ]; then
+                media_json="${media_json}{\"type\":\"document\",\"media\":\"attach://file${file_counter}\",\"caption\":\"${caption_escaped}\",\"parse_mode\":\"HTML\"}"
+                first_item=false
+            else
+                media_json="${media_json},{\"type\":\"document\",\"media\":\"attach://file${file_counter}\"}"
+            fi
+            file_counter=$((file_counter + 1))
+        fi
+        
+        media_json="${media_json}]"
+        
+        # Only proceed if we have at least one file
+        if [ "$file_counter" -eq 1 ]; then
+            echo "WARNING: No files to send in media group" >&2
+            return 1
+        fi
+        
+        # Validate with jq if available (but don't rebuild, just check)
+        if command -v jq >/dev/null 2>&1; then
+            if ! echo "$media_json" | jq . >/dev/null 2>&1; then
+                echo "WARNING: JSON validation failed, but proceeding anyway" >&2
+            fi
+        fi
+        
+        # Debug output - always show for troubleshooting
+        echo "DEBUG: media_json: $media_json" >&2
+        echo "DEBUG: temp_image_file: $temp_image_file" >&2
+        echo "DEBUG: zip_file: $zip_file" >&2
+        
+        # Validate JSON if jq is available
+        if command -v jq >/dev/null 2>&1; then
+            if ! echo "$media_json" | jq . >/dev/null 2>&1; then
+                echo "ERROR: Invalid JSON generated!" >&2
+                echo "$media_json" | jq . >&2 || echo "$media_json" >&2
+            else
+                echo "DEBUG: JSON is valid" >&2
+            fi
+        fi
+        
+        # Build file attachment arguments dynamically (both files are optional)
+        local curl_file_args=()
+        local attach_counter=1
+        
+        if [ -n "$temp_image_file" ] && [ -f "$temp_image_file" ]; then
+            curl_file_args+=(-F "file${attach_counter}=@${temp_image_file}")
+            if [ "$DEBUG_DATA" -eq 1 ]; then
+                echo "DEBUG: Image file exists, size: $(stat -f%z "$temp_image_file" 2>/dev/null || stat -c%s "$temp_image_file" 2>/dev/null || echo "unknown") bytes" >&2
+            fi
+            attach_counter=$((attach_counter + 1))
+        else
+            echo "DEBUG: Image file not provided or not found: $temp_image_file" >&2
+        fi
+        
+        if [ -n "$zip_file" ] && [ -f "$zip_file" ]; then
+            curl_file_args+=(-F "file${attach_counter}=@${zip_file}")
+            if [ "$DEBUG_DATA" -eq 1 ]; then
+                echo "DEBUG: Zip file exists, size: $(stat -f%z "$zip_file" 2>/dev/null || stat -c%s "$zip_file" 2>/dev/null || echo "unknown") bytes" >&2
+            fi
+            attach_counter=$((attach_counter + 1))
+        else
+            echo "DEBUG: Zip file not provided or not found: $zip_file" >&2
+        fi
+        
+        # Pass JSON directly - ensure it's treated as a string literal
+        # Use --form-string which doesn't URL-encode the value
+        # Only include file attachments that exist
+        local result=$($CURL_CMD -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMediaGroup" \
+            -F "chat_id=${chat_id}" \
+            --form-string "media=$media_json" \
+            "${curl_file_args[@]}")
+        
+        # Clean up
+        if [ -n "$temp_image_file" ] && [ -f "$temp_image_file" ]; then
+            rm -f "$temp_image_file"
+        fi
+        if [ -n "$zip_file" ] && [ -f "$zip_file" ]; then
+            rm -f "$zip_file"
+        fi
+        
+        # Check results
+        echo "Sent to Telegram: ${message}"
+        if [ "$DEBUG_DATA" -eq 1 ] || echo "$result" | grep -q '"ok":false'; then
+            echo "Result: $result"
+        else
+            echo "Media group sent successfully"
+        fi
+        echo ""
+        echo "--------------------------------"
+        return 0
+    fi
+    
+    # Build curl command arguments for single media type
+    if [ ${#media_items[@]} -gt 0 ]; then
+        # Build JSON array for media items using jq if available for proper JSON construction
+        local media_json=""
+        if command -v jq >/dev/null 2>&1; then
+            # Use jq to properly construct JSON array
+            local first=true
+            local jq_input=""
+            for item in "${media_items[@]}"; do
+                # Parse the item JSON to extract type and media
+                local item_type=$(echo "$item" | jq -r '.type')
+                local item_media=$(echo "$item" | jq -r '.media')
+                if [ "$first" = true ]; then
+                    # Build JSON object with jq for proper escaping - use message (not message_encoded) and let jq escape it
+                    local media_obj=$(echo -n "$message" | jq -Rs --arg type "$item_type" --arg media "$item_media" '{type: $type, media: $media, caption: ., parse_mode: "HTML"}')
+                    jq_input="$media_obj"
+                    first=false
+                else
+                    local media_obj=$(jq -n --arg type "$item_type" --arg media "$item_media" '{type: $type, media: $media}')
+                    jq_input="${jq_input},${media_obj}"
+                fi
+            done
+            # Build the final array
+            media_json=$(echo "[$jq_input]" | jq -c .)
+        else
+            # Manual JSON construction (fallback)
+            local media_json="["
+            local first=true
+            for item in "${media_items[@]}"; do
+                if [ "$first" = true ]; then
+                    # Remove the closing brace
+                    local item_length=${#item}
+                    local item_without_brace="${item:0:$((item_length-1))}"
+                    # Build the complete item with caption and parse_mode
+                    local item_with_caption="${item_without_brace},\"caption\":\"${message_encoded}\",\"parse_mode\":\"HTML\"}"
+                    media_json="${media_json}${item_with_caption}"
+                    first=false
+                else
+                    media_json="${media_json},${item}"
+                fi
+            done
+            media_json="${media_json}]"
+        fi
+        
+        # Debug output - always show for troubleshooting
+        echo "DEBUG: media_json: $media_json" >&2
+        echo "DEBUG: message_encoded length: ${#message_encoded}" >&2
+        echo "DEBUG: message_encoded (first 200 chars): ${message_encoded:0:200}" >&2
+        
+        # Validate JSON if jq is available
+        if command -v jq >/dev/null 2>&1; then
+            if ! echo "$media_json" | jq . >/dev/null 2>&1; then
+                echo "ERROR: Invalid JSON generated!" >&2
+                echo "JSON: $media_json" >&2
+            else
+                echo "DEBUG: JSON is valid" >&2
+            fi
+        fi
+        
+        local curl_args=(
+            -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMediaGroup"
+            -F "chat_id=${chat_id}"
+            -F "media=${media_json}"
+        )
+        
+        # Add file attachments
+        if [ -n "$zip_file" ] && [ -f "$zip_file" ]; then
+            curl_args+=(-F "document=@${zip_file}")
+        fi
+        if [ -n "$temp_image_file" ] && [ -f "$temp_image_file" ]; then
+            curl_args+=(-F "photo=@${temp_image_file}")
         fi
     else
-        # Send text only
-        result=$($CURL_CMD -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
-            -d "chat_id=${chat_id}" \
-            --data-urlencode "parse_mode=HTML" \
-            --data-urlencode "text=${message}")
+        # No media, send text message only (when both image_url and zip_file are empty/not provided)
+        local curl_args=(
+            -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage"
+            -d "chat_id=${chat_id}"
+            --data-urlencode "parse_mode=HTML"
+            --data-urlencode "text=$(htmlencode "$message")"
+        )
     fi
-        
+
+    if [ $DEBUG_DATA -eq 1 ]; then
+        echo "DEBUG: curl_args:" >&2
+        printf "  %s\n" "${curl_args[@]}" >&2
+    fi
+
+    result=$($CURL_CMD "${curl_args[@]}")
+    
+    # Clean up the temporary file
+    #if [ -n "$temp_image_file" ] && [ -f "$temp_image_file" ]; then
+       # rm -f "$temp_image_file"
+    #fi
+    if [ -n "$zip_file" ] && [ -f "$zip_file" ]; then
+        rm -f "$zip_file"
+    fi
     # Check if result contains an error or if debug is enabled
     if [ "$DEBUG_DATA" -eq 1 ] || echo "$result" | grep -q '"ok":false'; then
         echo "Sent to Telegram: ${message}"
@@ -197,7 +430,8 @@ send_to_telegram() {
 
 htmlencode() {
     local string="${1}"
-    local encoded=$(echo "$string" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g; s/'"'"'/\&apos;/g')
+    #local encoded=$(echo "$string" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g; s/'"'"'/\&apos;/g')
+    local encoded=$(echo "$string" | sed 's/&/%26/g; s/</\&lt;/g; s/\&gt;/>/g; s/\&quot;/"/g; s/'"'"'/\&apos;/g')
     echo "${encoded}"
 }
 
@@ -357,7 +591,7 @@ login() {
 }
 
 image_download() {
-    local image_file="${TEMP_FILES_PREFIX}$$.img.bin"
+    local image_file="${TEMP_FILES_PREFIX}$$.img.png"
     local image_url="$1"
     
     # Clean and validate the URL
@@ -752,7 +986,7 @@ get_keywords() {
         fi
         
         # Save response to a temporary file to check content if extraction fails
-        local zip_file="${TEMP_FILES_PREFIX}${id}_zip_$$.bin"
+        local zip_file="${TEMP_FILES_PREFIX}${id}_zip_$$.zip"
         local html_file="${TEMP_FILES_PREFIX}${id}_page_$$.html"
         
         $CURL_CMD -sL -b "$COOKIES_FILE" -c "$COOKIES_FILE" "https://${DOMAIN}/viewer/${id}/zip" \
@@ -846,7 +1080,7 @@ get_keywords() {
             # Find the actual record in ADS_DATA_LIST by ID and add the LINK_URL property
             for idx in "${!ADS_DATA_LIST[@]}"; do
                 if [[ "${ADS_DATA_LIST[$idx]}" == "ID:$id "* ]] || [[ "${ADS_DATA_LIST[$idx]}" == "ID:$id |"* ]]; then
-                    ADS_DATA_LIST[$idx]="${ADS_DATA_LIST[$idx]} | LINK_URL:$url_in_file | DOMAIN_NAME:$domain_name"
+                    ADS_DATA_LIST[$idx]="${ADS_DATA_LIST[$idx]} | LINK_URL:$url_in_file | DOMAIN_NAME:$domain_name | ZIP_FILE:$zip_file"
                     if [ $DEBUG_DATA -eq 1 ]; then
                         echo "  - Updated ADS_DATA_LIST record for ID $id with LINK_URL"
                     fi
@@ -920,7 +1154,9 @@ get_keywords() {
         fi
         
         # Clean up temporary files
-        rm -f "$zip_file" "$html_file"
+        #rm -f "$zip_file" "$html_file"
+        #rm -f "$zip_file"
+        rm -f "$html_file"
     done
 }
 
@@ -977,7 +1213,7 @@ if [ ${#UNIQUE_KEYWORDS_LIST[@]} -gt 0 ]; then
     fi
     
 fi
-# Call the frequency analysis function
+# Call the frequency analysis function 
 count_keyword_frequency
 
 echo -e "\n--- Structured ADS Data ---"
@@ -988,14 +1224,20 @@ for ad in "${ADS_DATA_LIST[@]}"; do
     if [ "$line_id" -gt "$LAST_SENT_ID" ]; then
         # Remove IMG:... field from the string before sending
         ad_img=$(echo "$ad" | grep -oP 'IMG:\K[^|]*')
+        zip_file=$(echo "$ad" | grep -oP 'ZIP_FILE:\K[^|]*')
         ad_to_send=$(echo "$ad" | sed -E 's/ \| IMG:[^|]*/ /g')
+        ad_to_send=$(echo "$ad_to_send" | sed -E 's/ \| DOMAIN_NAME:[^|]*/ /g')
+        ad_to_send=$(echo "$ad_to_send" | sed -E 's/ \| ZIP_FILE:[^|]*/ /g')
+
         # Replace the " | " separator with a real newline for better Telegram formatting
         add_to_add="${ad_to_send// | /$'\n'}"
         full_message="${full_message}${add_to_add}"$'\n\n'
         send_info=1
         echo "Sending to Telegram: $add_to_add"
-        send_to_telegram "$add_to_add" "$TG_BOT_CHANNEL" "$ad_img"
+        send_to_telegram "$add_to_add" "$TG_BOT_CHANNEL" "$ad_img" "$zip_file"
+        #exit 1
         echo "$line_id" > $POSITIONS_FILE
         echo "Added to positions file: $line_id"
+        rm -f "$zip_file"
     fi
 done
