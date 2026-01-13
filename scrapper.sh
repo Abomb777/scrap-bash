@@ -996,5 +996,6 @@ for ad in "${ADS_DATA_LIST[@]}"; do
         echo "Sending to Telegram: $add_to_add"
         send_to_telegram "$add_to_add" "$TG_BOT_CHANNEL" "$ad_img"
         echo "$line_id" > $POSITIONS_FILE
+        echo "Added to positions file: $line_id"
     fi
 done
