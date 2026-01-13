@@ -9,7 +9,7 @@ TG_BOT_CHANNEL=""
 
 DEBUG_DATA=0
 MAX_PAGES_BACK=2
-DELAY_SECONDS=2
+DELAY_SECONDS=1
 CATEGORY=1
 # Get current directory, fallback to . if pwd fails (can happen when piped)
 CURRENT_DIR=$(pwd 2>/dev/null || echo ".")
