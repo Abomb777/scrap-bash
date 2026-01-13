@@ -1218,7 +1218,10 @@ count_keyword_frequency
 
 echo -e "\n--- Structured ADS Data ---"
 send_info=0
-for ad in "${ADS_DATA_LIST[@]}"; do
+#for ad in "${ADS_DATA_LIST[@]}"; do
+# Iterate through ADS_DATA_LIST in reverse order
+for ((idx=${#ADS_DATA_LIST[@]}-1; idx>=0; idx--)); do
+    ad="${ADS_DATA_LIST[$idx]}"
     full_message="Full ADS Data:"$'\n'
     line_id=$(echo "$ad" | grep -oP 'ID:\K[0-9]+')
     if [ "$line_id" -gt "$LAST_SENT_ID" ]; then
