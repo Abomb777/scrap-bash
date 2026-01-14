@@ -6,6 +6,7 @@ LOGIN_PASSWD=""
 DOMAIN=""
 TG_BOT_TOKEN=""
 TG_BOT_CHANNEL=""
+TG_BOT_CHANNEL_TXT=""
 
 DEBUG_DATA=0
 MAX_PAGES_BACK=1
@@ -51,20 +52,25 @@ echo "------------------------------------------"
 sleep 5
 
 
-while getopts "c:l:dt:q:u:p:w:h" opt; do
+while getopts "c:l:dt:q:x:u:p:w:h" opt; do
     case $opt in
         c) CATEGORY=$OPTARG ;;
         l) DOMAIN=$OPTARG ;;
         d) DEBUG_DATA=1 ;;
         t) TG_BOT_TOKEN=$OPTARG ;;
         q) TG_BOT_CHANNEL=$OPTARG ;;
+        x) TG_BOT_CHANNEL_TXT=$OPTARG ;;
         u) LOGIN_EMAIL=$OPTARG ;;
         p) LOGIN_PASSWD=$OPTARG ;;
         w) MAX_PAGES_BACK=$OPTARG ;;
-        h) echo "Usage: $0 -c <category> -l <domain> -d -t <tg_bot_token> -q <tg_bot_channel> -u <login_email> -p <login_password> -w <max_pages_back> -h"; exit 0;;
+        h) echo "Usage: $0 -c <category> -l <domain> -d -t <tg_bot_token> -q <tg_bot_channel> -x <tg_bot_channel_txt> -u <login_email> -p <login_password> -w <max_pages_back> -h"; exit 0;;
         *) echo "Invalid option: -$OPTARG" >&2; exit 1;;
     esac
 done
+
+if [ -z "$TG_BOT_CHANNEL_TXT" ]; then
+    TG_BOT_CHANNEL_TXT="$TG_BOT_CHANNEL"
+fi
 
 POSITIONS_FILE="${CURRENT_DIR}/temp/positions_${CATEGORY}.txt"
 touch "$POSITIONS_FILE" || {
@@ -79,6 +85,7 @@ if [ "$DEBUG_DATA" -eq 1 ]; then
     echo "Domain: $DOMAIN"
     echo "TG Bot Token: $TG_BOT_TOKEN"
     echo "TG Bot Channel: $TG_BOT_CHANNEL"
+    echo "TG Bot Channel TXT: $TG_BOT_CHANNEL_TXT"
     echo "Login Email: $LOGIN_EMAIL"
     echo "Login Password: $LOGIN_PASSWD"
     echo "Max Pages Back: $MAX_PAGES_BACK"
@@ -1206,7 +1213,7 @@ for unique_kw in "${UNIQUE_KEYWORDS_LIST[@]}"; do
 done
 if [ ${#UNIQUE_KEYWORDS_LIST[@]} -gt 0 ]; then
     echo "Sending to Telegram: $uniq_message"
-    send_to_telegram "$uniq_message" "$TG_BOT_CHANNEL"
+    send_to_telegram "$uniq_message" "$TG_BOT_CHANNEL_TXT"
 
     echo "Last sent ID: $LAST_SENT_ID"
     echo "Adding to positions file: $LAST_SENT_ID"
