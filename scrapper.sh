@@ -41,11 +41,11 @@ if [ ! -w "${CURRENT_DIR}/temp" ]; then
     exit 1
 fi
 
-rm -f "${CURRENT_DIR}/temp/page_response_*.html"
-rm -f "${CURRENT_DIR}/temp/page_response_*.bin"
-rm -f "${CURRENT_DIR}/temp/page_response_*.png"
-rm -f "${CURRENT_DIR}/temp/page_response_*.zip"
-rm -f "${CURRENT_DIR}/temp/page_response_*.txt"
+rm -f "${CURRENT_DIR}/temp/page_response_.*.html"
+rm -f "${CURRENT_DIR}/temp/page_response_.*.bin"
+rm -f "${CURRENT_DIR}/temp/page_response_.*.png"
+rm -f "${CURRENT_DIR}/temp/page_response_.*.zip"
+rm -f "${CURRENT_DIR}/temp/page_response_.*.txt"
 
 while getopts "c:l:dt:q:u:p:w:h" opt; do
     case $opt in
