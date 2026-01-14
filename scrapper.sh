@@ -46,6 +46,10 @@ rm -f "${CURRENT_DIR}/temp/page_response_.*.bin"
 rm -f "${CURRENT_DIR}/temp/page_response_.*.png"
 rm -f "${CURRENT_DIR}/temp/page_response_.*.zip"
 rm -f "${CURRENT_DIR}/temp/page_response_.*.txt"
+echo "Del protect 5 seconds"
+echo "------------------------------------------"
+sleep 5
+
 
 while getopts "c:l:dt:q:u:p:w:h" opt; do
     case $opt in
