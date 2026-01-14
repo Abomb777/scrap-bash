@@ -93,7 +93,7 @@ UNIQUE_KEYWORDS_LIST=()
 
 COOKIES_FILE="${CURRENT_DIR}/login_cookies.txt"
 TEMP_FILES_PREFIX="${CURRENT_DIR}/temp/page_response_"
-SKIP_KEYWORDS_LIST=('Répondre' 'test' 'Responder' 'Risposta' '点赞' '2h ago' 'Alle Leistungen anzeigen' 'Скрыть' 'Come' 'Like' 'Sport' 'Reply')
+SKIP_KEYWORDS_LIST=('Répondre' 'test' 'Responder' 'Risposta' '点赞' '2h ago' 'Alle Leistungen anzeigen' 'Скрыть' 'Come' 'Like' 'Sport' 'Reply' 'Plattform' 'Platforma' 'Platform')
 MAX_ATTEMPTS=3
 TOMORROW_TIMESTAMP=$(date -d 'tomorrow' +%s)
 EXTRA_COOKIES="_ym_uid=${TOMORROW_TIMESTAMP}931665485; _ym_d=${TOMORROW_TIMESTAMP}; _ym_isad=2; _ym_visorc=w;"
