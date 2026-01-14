@@ -12,6 +12,8 @@ DEBUG_DATA=0
 MAX_PAGES_BACK=1
 DELAY_SECONDS=1
 CATEGORY=1
+TEMP_KW_PREFIX=$(date +%Y%m%d)
+
 # Get current directory, fallback to . if pwd fails (can happen when piped)
 CURRENT_DIR=$(pwd 2>/dev/null || echo ".")
 
@@ -52,7 +54,7 @@ echo "------------------------------------------"
 sleep 5
 
 
-while getopts "c:l:dt:q:x:u:p:w:h" opt; do
+while getopts "c:l:dt:q:x:u:p:w:z:h" opt; do
     case $opt in
         c) CATEGORY=$OPTARG ;;
         l) DOMAIN=$OPTARG ;;
@@ -63,10 +65,14 @@ while getopts "c:l:dt:q:x:u:p:w:h" opt; do
         u) LOGIN_EMAIL=$OPTARG ;;
         p) LOGIN_PASSWD=$OPTARG ;;
         w) MAX_PAGES_BACK=$OPTARG ;;
+        z) TEMP_KW_PREFIX=$(date +$OPTARG) ;;
         h) echo "Usage: $0 -c <category> -l <domain> -d -t <tg_bot_token> -q <tg_bot_channel> -x <tg_bot_channel_txt> -u <login_email> -p <login_password> -w <max_pages_back> -h"; exit 0;;
         *) echo "Invalid option: -$OPTARG" >&2; exit 1;;
     esac
 done
+
+TEMP_KW_FILE="${CURRENT_DIR}/temp/keywords_${CATEGORY}_${TEMP_KW_PREFIX}.txt"
+
 
 if [ -z "$TG_BOT_CHANNEL_TXT" ]; then
     TG_BOT_CHANNEL_TXT="$TG_BOT_CHANNEL"
@@ -89,6 +95,7 @@ if [ "$DEBUG_DATA" -eq 1 ]; then
     echo "Login Email: $LOGIN_EMAIL"
     echo "Login Password: $LOGIN_PASSWD"
     echo "Max Pages Back: $MAX_PAGES_BACK"
+    echo "Temp keywords file: $TEMP_KW_FILE"
     echo "------------------------------------------"
 else
     echo "Debug data is disabled"
