@@ -74,7 +74,7 @@ while getopts "c:l:dt:q:x:u:p:w:z:h" opt; do
 done
 
 TEMP_KW_FILE="${CURRENT_DIR}/temp/keywords_${CATEGORY}_${TEMP_KW_PREFIX}.txt"
-if [-f "$TEMP_KW_FILE" ]; then
+if [ -f "$TEMP_KW_FILE" ]; then
     echo "Temp keywords file found: $TEMP_KW_FILE"
     KW_CONTENT=$(cat "$TEMP_KW_FILE")
     if [ -z "$KW_CONTENT" ]; then
