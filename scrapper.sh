@@ -49,6 +49,8 @@ rm -f "${CURRENT_DIR}/temp/page_response_.*.bin"
 rm -f "${CURRENT_DIR}/temp/page_response_.*.png"
 rm -f "${CURRENT_DIR}/temp/page_response_.*.zip"
 rm -f "${CURRENT_DIR}/temp/page_response_.*.txt"
+
+
 echo "Del protect 5 seconds"
 echo "------------------------------------------"
 sleep 5
@@ -72,7 +74,27 @@ while getopts "c:l:dt:q:x:u:p:w:z:h" opt; do
 done
 
 TEMP_KW_FILE="${CURRENT_DIR}/temp/keywords_${CATEGORY}_${TEMP_KW_PREFIX}.txt"
-
+if [-f "$TEMP_KW_FILE" ]; then
+    echo "Temp keywords file found: $TEMP_KW_FILE"
+    KW_CONTENT=$(cat "$TEMP_KW_FILE")
+    if [ -z "$KW_CONTENT" ]; then
+        echo "No keywords found in temp keywords file"
+    else
+        echo "Keywords found in temp keywords file: $KW_CONTENT"
+        rm -f "${CURRENT_DIR}/temp/keywords_*.txt"
+        echo "$KW_CONTENT" > "$TEMP_KW_FILE"
+        echo "Keywords added to temp keywords file: $TEMP_KW_FILE"
+    fi
+else 
+    echo "No keywords found in temp keywords file"
+    echo "Creating temp keywords file: $TEMP_KW_FILE"
+    touch "$TEMP_KW_FILE" || {
+        echo "Error: Failed to create temp keywords file" >&2
+        exit 1
+    }
+    echo "Temp keywords file created: $TEMP_KW_FILE"
+    echo "No keywords found in temp keywords file"
+fi
 
 if [ -z "$TG_BOT_CHANNEL_TXT" ]; then
     TG_BOT_CHANNEL_TXT="$TG_BOT_CHANNEL"
@@ -159,6 +181,11 @@ nl2nlll() {
 }
 
 send_to_telegram() {
+
+    echo "Sending to Telegram: $message"
+    return 0
+    echo "--------------------------------"
+
     echo "Delaying for $DELAY_SECONDS seconds..."
     sleep $DELAY_SECONDS
 
@@ -1216,8 +1243,17 @@ echo "Total unique top keywords: ${#UNIQUE_KEYWORDS_LIST[@]}"
 uniq_message="Total unique top keywords: ${#UNIQUE_KEYWORDS_LIST[@]}"$'\n'
 for unique_kw in "${UNIQUE_KEYWORDS_LIST[@]}"; do
     echo " - $unique_kw"
-    uniq_message="${uniq_message}${unique_kw}"$'\n'
+    #uniq_message="${uniq_message}${unique_kw}"$'\n'
+    if [ "${unique_kw}" == "$KW_CONTENT" ]; then
+        echo "Keyword found in temp keywords file: $unique_kw"
+        continue
+    else
+        echo "Keyword not found in temp keywords file: $unique_kw"
+        echo "$unique_kw" >> "$TEMP_KW_FILE"
+        uniq_message="${uniq_message}${unique_kw}"$'\n'
+    fi
 done
+
 if [ ${#UNIQUE_KEYWORDS_LIST[@]} -gt 0 ]; then
     echo "Sending to Telegram: $uniq_message"
     send_to_telegram "$uniq_message" "$TG_BOT_CHANNEL_TXT"
