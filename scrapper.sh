@@ -81,7 +81,7 @@ if [ -f "$TEMP_KW_FILE" ]; then
         echo "No keywords found in temp keywords file"
     else
         echo "Keywords found in temp keywords file: $KW_CONTENT"
-        rm -f "${CURRENT_DIR}/temp/keywords_*.txt"
+        rm -f "${CURRENT_DIR}/temp/keywords_${CATEGORY}_*.txt"
         echo "$KW_CONTENT" > "$TEMP_KW_FILE"
         echo "Keywords added to temp keywords file: $TEMP_KW_FILE"
     fi
@@ -133,7 +133,7 @@ UNIQUE_KEYWORDS_LIST=()
 
 COOKIES_FILE="${CURRENT_DIR}/login_cookies.txt"
 TEMP_FILES_PREFIX="${CURRENT_DIR}/temp/page_response_"
-SKIP_KEYWORDS_LIST=('Répondre' 'test' 'Responder' 'Risposta' '点赞' '2h ago' 'Alle Leistungen anzeigen' 'Скрыть' 'Come' 'Like' 'Sport' 'Reply' 'Plattform' 'Platforma' 'Platform')
+SKIP_KEYWORDS_LIST=('Répondre' 'test' 'Responder' 'Risposta' '点赞' '2h ago' 'Alle Leistungen anzeigen' 'Скрыть' 'Come' 'Like' 'Sport' 'Reply' 'Plattform' 'Platforma' 'Platform' '250 Euro')
 MAX_ATTEMPTS=3
 TOMORROW_TIMESTAMP=$(date -d 'tomorrow' +%s)
 EXTRA_COOKIES="_ym_uid=${TOMORROW_TIMESTAMP}931665485; _ym_d=${TOMORROW_TIMESTAMP}; _ym_isad=2; _ym_visorc=w;"
@@ -1150,7 +1150,10 @@ get_keywords() {
             local top_count=$(echo "$top_entry" | awk '{print $1}')
             local top_keyword=$(echo "$top_entry" | sed -E 's/^[[:space:]]*[0-9]+[[:space:]]+//')
             
-            if [ -n "$top_keyword" ] && [ "$top_count" -gt 2 ] && [[ "$top_keyword" =~ [a-zA-Z] ]]; then
+            # Count alphabetic characters in top_keyword
+            #if [ -n "$top_keyword" ] && [ "$top_count" -gt 2 ] && [[ "$top_keyword" =~ [a-zA-Z] ]]; then
+            local alpha_count=$(echo "$top_keyword" | grep -o '[a-zA-Z]' | wc -l)
+            if [ -n "$top_keyword" ] && [ "$top_count" -gt 2 ] && [ "$alpha_count" -gt 3 ]; then
                 # Check if top_keyword is in SKIP_KEYWORDS_LIST
                 local skip_this=0
                 for skip_kw in "${SKIP_KEYWORDS_LIST[@]}"; do
@@ -1244,7 +1247,8 @@ uniq_message="Total unique top keywords: ${#UNIQUE_KEYWORDS_LIST[@]}"$'\n'
 for unique_kw in "${UNIQUE_KEYWORDS_LIST[@]}"; do
     echo " - $unique_kw"
     #uniq_message="${uniq_message}${unique_kw}"$'\n'
-    if [ "${unique_kw}" == "$KW_CONTENT" ]; then
+    #if [ "${unique_kw}" == "$KW_CONTENT" ]; then
+    if [[ $KW_CONTENT =~ $unique_kw ]]; then
         echo "Keyword found in temp keywords file: $unique_kw"
         continue
     else
