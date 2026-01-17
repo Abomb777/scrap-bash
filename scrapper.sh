@@ -260,7 +260,9 @@ send_to_telegram() {
     # If we have both, send both as documents in a media group (one message)
     if [ "$has_photo" = true ] && [ "$has_document" = true ]; then
         # Send both photo and zip as documents in a media group
-        echo "DEBUG: Mixed media types detected, sending both as documents in media group" >&2
+        if [ "$TG_DEBUGER" = true ]; then
+            echo "DEBUG: Mixed media types detected, sending both as documents in media group" >&2
+        fi
         
         # Build JSON dynamically based on which files exist (both are optional)
         # Escape the message for JSON: backslashes, quotes, newlines, carriage returns
