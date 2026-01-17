@@ -4,6 +4,7 @@ set +e  # Don't exit on error - continue execution
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
+BLUE='\033[0;34m'
 
 LOGIN_EMAIL=""
 LOGIN_PASSWD=""
@@ -113,17 +114,17 @@ touch "$POSITIONS_FILE" || {
 
 if [ "$DEBUG_DATA" -eq 1 ]; then
     echo "Debug data is enabled"
-    echo "------------------------------------------"
-    echo "Category: $CATEGORY"
-    echo "Domain: $DOMAIN"
-    echo "TG Bot Token: $TG_BOT_TOKEN"
-    echo "TG Bot Channel: $TG_BOT_CHANNEL"
-    echo "TG Bot Channel TXT: $TG_BOT_CHANNEL_TXT"
-    echo "Login Email: $LOGIN_EMAIL"
-    echo "Login Password: $LOGIN_PASSWD"
-    echo "Max Pages Back: $MAX_PAGES_BACK"
-    echo "Temp keywords file: $TEMP_KW_FILE"
-    echo "------------------------------------------"
+    echo -e "${BLUE}------------------------------------------${NC}"
+    echo -e "${BLUE}Category: $CATEGORY${NC}"
+    echo -e "${BLUE}Domain: $DOMAIN${NC}"
+    echo -e "${BLUE}TG Bot Token: $TG_BOT_TOKEN${NC}"
+    echo -e "${BLUE}TG Bot Channel: $TG_BOT_CHANNEL${NC}"
+    echo -e "${BLUE}TG Bot Channel TXT: $TG_BOT_CHANNEL_TXT${NC}"
+    echo -e "${BLUE}Login Email: $LOGIN_EMAIL${NC}"
+    echo -e "${BLUE}Login Password: $LOGIN_PASSWD${NC}"
+    echo -e "${BLUE}Max Pages Back: $MAX_PAGES_BACK${NC}"
+    echo -e "${BLUE}Temp keywords file: $TEMP_KW_FILE${NC}"
+    echo -e "${BLUE}------------------------------------------${NC}"
 else
     echo "Debug data is disabled"
 fi
