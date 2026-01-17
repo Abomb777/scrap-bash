@@ -11,6 +11,7 @@ DOMAIN=""
 TG_BOT_TOKEN=""
 TG_BOT_CHANNEL=""
 TG_BOT_CHANNEL_TXT=""
+TG_DEBUGER=false
 
 DEBUG_DATA=0
 MAX_PAGES_BACK=1
@@ -314,11 +315,12 @@ send_to_telegram() {
             fi
         fi
         
-        # Debug output - always show for troubleshooting
-        echo "DEBUG: media_json: $media_json" >&2
-        echo "DEBUG: temp_image_file: $temp_image_file" >&2
-        echo "DEBUG: zip_file: $zip_file" >&2
-        
+        if [ "$TG_DEBUGER" = true ]; then
+            # Debug output - always show for troubleshooting
+            echo "DEBUG: media_json: $media_json" >&2
+            echo "DEBUG: temp_image_file: $temp_image_file" >&2
+            echo "DEBUG: zip_file: $zip_file" >&2
+        fi
         # Validate JSON if jq is available
         if command -v jq >/dev/null 2>&1; then
             if ! echo "$media_json" | jq . >/dev/null 2>&1; then
@@ -425,10 +427,12 @@ send_to_telegram() {
             media_json="${media_json}]"
         fi
         
-        # Debug output - always show for troubleshooting
-        echo "DEBUG: media_json: $media_json" >&2
-        echo "DEBUG: message_encoded length: ${#message_encoded}" >&2
-        echo "DEBUG: message_encoded (first 200 chars): ${message_encoded:0:200}" >&2
+        if [ "$TG_DEBUGER" = true ]; then
+            # Debug output - always show for troubleshooting
+            echo "DEBUG: media_json: $media_json" >&2
+            echo "DEBUG: message_encoded length: ${#message_encoded}" >&2
+            echo "DEBUG: message_encoded (first 200 chars): ${message_encoded:0:200}" >&2
+        fi
         
         # Validate JSON if jq is available
         if command -v jq >/dev/null 2>&1; then
