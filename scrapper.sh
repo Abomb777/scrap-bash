@@ -1,6 +1,10 @@
 #!/bin/bash
 set +e  # Don't exit on error - continue execution
 
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
 LOGIN_EMAIL=""
 LOGIN_PASSWD=""
 DOMAIN=""
@@ -181,11 +185,6 @@ nl2nlll() {
 }
 
 send_to_telegram() {
-
-    echo "Sending to Telegram: $message"
-    return 0
-    echo "--------------------------------"
-
     echo "Delaying for $DELAY_SECONDS seconds..."
     sleep $DELAY_SECONDS
 
@@ -193,6 +192,20 @@ send_to_telegram() {
     local chat_id="$2"
     local image_url="${3:-}"  # Optional: URL to image to download and send
     local zip_file="${4:-}"   # Optional: Path to zip file to send as document
+
+   
+
+    if [ "$DEBUG_DATA" -eq 1 ]; then
+        echo -e "${RED}--------------------------------${NC}"
+        echo -e "${RED}NO REAL SEND: $message${NC}"
+        echo -e "${RED}--------------------------------${NC}"
+        return 0
+    else
+        #echo -e "\033[0;32mSending to Telegram: $message\033[0m"
+        echo -e "${GREEN}--------------------------------${NC}"
+        echo -e "${GREEN}REAL SEND: $message${NC}"
+        echo -e "${GREEN}--------------------------------${NC}"
+    fi
 
     # For JSON in Telegram API, we need to escape JSON special characters
     # The message may contain HTML entities (like &#039;) which should be preserved
@@ -1011,8 +1024,10 @@ extract_kw() {
     # Extract paragraphs and get only the first word from each
     local paragraphs_array=()
     readarray -t paragraphs_array < <(grep -oP '<p\b[^>]*>\K[^<]+(?=</p>)' "$html_file" | sed -E "s/^[[:space:]\"\“\”\‘\’\']+|[[:space:]\"\“\”\‘\’\']+$//g" | grep -v '^$' | awk '{print $1}')
+    local bolds_array=()
+    readarray -t bold_array < <(grep -oP '<b\b[^>]*>\K[^<]+(?=</b>)' "$html_file" | sed -E "s/^[[:space:]\"\“\”\‘\’\']+|[[:space:]\"\“\”\‘\’\']+$//g" | grep -v '^$' | awk '{print $1}')
     # Merge both arrays
-    local merged_array=("${atags_array[@]}" "${paragraphs_array[@]}")
+    local merged_array=("${atags_array[@]}" "${paragraphs_array[@]}" "${bold_array[@]}")
     
     # Output merged array, one element per line
     printf '%s\n' "${merged_array[@]}"
@@ -1243,7 +1258,8 @@ fi
 
 echo -e "\n--- Unique Top Keywords ---"
 echo "Total unique top keywords: ${#UNIQUE_KEYWORDS_LIST[@]}"
-uniq_message="Total unique top keywords: ${#UNIQUE_KEYWORDS_LIST[@]}"$'\n'
+#uniq_message="Total unique top keywords: ${#UNIQUE_KEYWORDS_LIST[@]}"$'\n'
+uniq_message=""
 for unique_kw in "${UNIQUE_KEYWORDS_LIST[@]}"; do
     echo " - $unique_kw"
     #uniq_message="${uniq_message}${unique_kw}"$'\n'
@@ -1258,8 +1274,8 @@ for unique_kw in "${UNIQUE_KEYWORDS_LIST[@]}"; do
     fi
 done
 
-if [ ${#UNIQUE_KEYWORDS_LIST[@]} -gt 0 ]; then
-    echo "Sending to Telegram: $uniq_message"
+if [ ${#UNIQUE_KEYWORDS_LIST[@]} -gt 0 ] && [ -n "$uniq_message" ]; then
+    echo -e "${GREEN}--> Sending to Telegram: $uniq_message${NC}"
     send_to_telegram "$uniq_message" "$TG_BOT_CHANNEL_TXT"
 
     echo "Last sent ID: $LAST_SENT_ID"
@@ -1294,7 +1310,7 @@ for ((idx=${#ADS_DATA_LIST[@]}-1; idx>=0; idx--)); do
         add_to_add="${ad_to_send// | /$'\n'}"
         full_message="${full_message}${add_to_add}"$'\n\n'
         send_info=1
-        echo "Sending to Telegram: $add_to_add"
+        #echo "--> Sending to Telegram: $add_to_add"
         send_to_telegram "$add_to_add" "$TG_BOT_CHANNEL" "$ad_img" "$zip_file"
         #exit 1
         echo "$line_id" > $POSITIONS_FILE
