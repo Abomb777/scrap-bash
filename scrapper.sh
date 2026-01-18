@@ -1135,26 +1135,6 @@ get_keywords() {
         bsdtar -xO -f "$zip_file" "*.html" > "$html_file" 2>/dev/null
         
         url_in_file=$(grep -oP ' url: \K\S+' "$html_file" | head -1)
-
-        if [ -n "$url_in_file" ]; then
-            if [ $DEBUG_DATA -eq 1 ]; then
-                echo "URL in file: $url_in_file"
-            fi
-            domain_name=$(echo "$url_in_file" | grep -oP 'https://\K[^/]+')
-            if [ $DEBUG_DATA -eq 1 ]; then
-                echo "Domain name: $domain_name"
-            fi
-            # Find the actual record in ADS_DATA_LIST by ID and add the LINK_URL property
-            for idx in "${!ADS_DATA_LIST[@]}"; do
-                if [[ "${ADS_DATA_LIST[$idx]}" == "ID:$id "* ]] || [[ "${ADS_DATA_LIST[$idx]}" == "ID:$id |"* ]]; then
-                    ADS_DATA_LIST[$idx]="${ADS_DATA_LIST[$idx]} | LINK_URL:$url_in_file | DOMAIN_NAME:$domain_name | ZIP_FILE:$zip_file"
-                    if [ $DEBUG_DATA -eq 1 ]; then
-                        echo "  - Updated ADS_DATA_LIST record for ID $id with LINK_URL"
-                    fi
-                    break
-                fi
-            done
-        fi
         # Extract keywords from HTML file using extract_kw function
         readarray -t keywords < <(extract_kw "$html_file")
         
@@ -1171,7 +1151,29 @@ get_keywords() {
             local top_entry=$(printf "%s\n" "${keywords[@]}" | sort | uniq -c | sort -rn | head -n 1)
             local top_count=$(echo "$top_entry" | awk '{print $1}')
             local top_keyword=$(echo "$top_entry" | sed -E 's/^[[:space:]]*[0-9]+[[:space:]]+//')
-            
+        fi
+
+        if [ -n "$url_in_file" ]; then
+            if [ $DEBUG_DATA -eq 1 ]; then
+                echo "URL in file: $url_in_file"
+            fi
+            domain_name=$(echo "$url_in_file" | grep -oP 'https://\K[^/]+')
+            if [ $DEBUG_DATA -eq 1 ]; then
+                echo "Domain name: $domain_name"
+            fi
+            # Find the actual record in ADS_DATA_LIST by ID and add the LINK_URL property
+            for idx in "${!ADS_DATA_LIST[@]}"; do
+                if [[ "${ADS_DATA_LIST[$idx]}" == "ID:$id "* ]] || [[ "${ADS_DATA_LIST[$idx]}" == "ID:$id |"* ]]; then
+                    ADS_DATA_LIST[$idx]="${ADS_DATA_LIST[$idx]} | LINK_URL:$url_in_file | DOMAIN_NAME:$domain_name | ZIP_FILE:$zip_file | KEYWORD:$top_keyword"
+                    if [ $DEBUG_DATA -eq 1 ]; then
+                        echo "  - Updated ADS_DATA_LIST record for ID $id with LINK_URL"
+                    fi
+                    break
+                fi
+            done
+        fi
+        
+        if [ ${#keywords[@]} -gt 0 ]; then
             # Count alphabetic characters in top_keyword
             #if [ -n "$top_keyword" ] && [ "$top_count" -gt 2 ] && [[ "$top_keyword" =~ [a-zA-Z] ]]; then
             local alpha_count=$(echo "$top_keyword" | grep -o '[a-zA-Z]' | wc -l)
