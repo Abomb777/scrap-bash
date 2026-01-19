@@ -870,12 +870,12 @@ image_download() {
             fi
             echo "Image file size: $file_size" >&2
             if [ "$file_size" -gt 8000 ]; then
-                echo "${GREEN}--------- Image file size is good enough: $file_size${NC}" >&2
+                echo -e "${GREEN}--------- Image file size is good enough: $file_size${NC}" >&2
                 #rm -f "$image_file"
                 #echo ""
                 #return
             else
-                echo "${RED}+++++++++++ Image file size is too small: $file_size${NC}" >&2
+                echo -e "${RED}+++++++++++ Image file size is too small: $file_size${NC}" >&2
             fi
         fi
         
@@ -1467,6 +1467,73 @@ count_keyword_frequency() {
     printf "%s\n" "${KEYWORDS_LIST[@]}" | sort | uniq -c | sort -rn
 }
 
+htmldecode() {
+    local string="$1"
+
+    # First decode common named entities
+    local decoded
+    decoded=$(echo "$string" | sed -E \
+        -e 's/&amp;/\&/g' \
+        -e 's/&lt;/</g' \
+        -e 's/&gt;/>/g' \
+        -e 's/&quot;/"/g' \
+        -e "s/&apos;/'/g" \
+        -e 's/&nbsp;/ /g' \
+        -e 's/&copy;/©/g' \
+        -e 's/&reg;/®/g' \
+        -e 's/&euro;/€/g' \
+        -e 's/&pound;/£/g' \
+        -e 's/&yen;/¥/g' \
+        -e 's/&cent;/¢/g' \
+        -e 's/&ldquo;/“/g' \
+        -e 's/&rdquo;/”/g' \
+        -e "s/&lsquo;/'/g" \
+        -e "s/&rsquo;/'/g" \
+        -e 's/&hellip;/…/g')
+
+    # Decode decimal numeric character references: &#NNNN;
+    # Only handle values in basic multilingual plane safely; leave others as-is
+    local prefix code suffix ch code_dec
+    while [[ "$decoded" =~ (.*)\&#([0-9]+)\;(.*) ]]; do
+        prefix="${BASH_REMATCH[1]}"
+        code="${BASH_REMATCH[2]}"
+        suffix="${BASH_REMATCH[3]}"
+
+        # Default to original sequence if conversion fails
+        ch="&#${code};"
+
+        # Force base-10 to avoid octal interpretation of leading zeros (e.g. 039)
+        if code_dec=$((10#$code)) 2>/dev/null; then
+            if (( code_dec > 0 && code_dec <= 255 )); then
+                # Single-byte (latin1-ish) – safe for most ad texts
+                printf -v ch '\\x%x' "$code_dec"
+            fi
+        fi
+
+        decoded="${prefix}${ch}${suffix}"
+    done
+
+    # Decode hexadecimal numeric character references: &#xHHHH;
+    while [[ "$decoded" =~ (.*)\&#x([0-9A-Fa-f]+)\;(.*) ]]; do
+        prefix="${BASH_REMATCH[1]}"
+        code="${BASH_REMATCH[2]}"
+        suffix="${BASH_REMATCH[3]}"
+
+        ch="&#x${code};"
+
+        # Convert hex to decimal
+        if code_dec=$((16#$code)) 2>/dev/null; then
+            if [[ "$code_dec" -gt 0 && "$code_dec" -le 255 ]]; then
+                printf -v ch '\\x%x' "$code_dec"
+            fi
+        fi
+
+        decoded="${prefix}${ch}${suffix}"
+    done
+
+    echo "$decoded"
+}
+
 #echo "old COOKIES: ${COOKIES}"
 #login
 #echo "new COOKIES:  ${COOKIES}"
@@ -1544,6 +1611,7 @@ for ((idx=${#ADS_DATA_LIST[@]}-1; idx>=0; idx--)); do
         add_to_add="${ad_to_send// | /$'\n'}"
         full_message="${full_message}${add_to_add}"$'\n\n'
         full_message=$(echo ${full_message} | sed -E 's/([A-Z_]+\:)/\*\1\* /g')
+        full_message=$(htmldecode ${full_message})
         send_info=1
         #echo "--> Sending to Telegram: $add_to_add"
         if [ -n "$zip_file" ]; then
