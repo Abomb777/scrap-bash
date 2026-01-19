@@ -777,7 +777,7 @@ image_download() {
     
     # Check if URL is empty
     if [ -z "$image_url" ]; then
-        echo -e "\033[0;31mEmpty image URL provided\033[0m" >&2
+        echo -e "${RED}Empty image URL provided${NC}" >&2
         echo ""
         return
     fi
@@ -789,7 +789,7 @@ image_download() {
     
     # Validate URL format (basic check)
     if [[ ! "$image_url" =~ ^https?:// ]]; then
-        echo -e "\033[0;31mInvalid URL format: $image_url\033[0m" >&2
+        echo -e "${RED}Invalid URL format: $image_url${NC}" >&2
         echo ""
         return
     fi
