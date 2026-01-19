@@ -1535,6 +1535,7 @@ for ((idx=${#ADS_DATA_LIST[@]}-1; idx>=0; idx--)); do
         # Remove IMG:... field from the string before sending
         ad_img=$(echo "$ad" | grep -oP 'IMG:\K[^|]*')
         zip_file=$(echo "$ad" | grep -oP 'ZIP_FILE:\K[^|]*')
+        
         ad_to_send=$(echo "$ad" | sed -E 's/ \| IMG:[^|]*/ /g')
         ad_to_send=$(echo "$ad_to_send" | sed -E 's/ \| DOMAIN_NAME:[^|]*/ /g')
         ad_to_send=$(echo "$ad_to_send" | sed -E 's/ \| ZIP_FILE:[^|]*/ /g')
@@ -1546,6 +1547,7 @@ for ((idx=${#ADS_DATA_LIST[@]}-1; idx>=0; idx--)); do
         send_info=1
         #echo "--> Sending to Telegram: $add_to_add"
         if [ -n "$zip_file" ]; then
+            echo "Sending zip file: $zip_file"
             send_to_telegram "$add_to_add" "$TG_BOT_CHANNEL" "$ad_img" "$zip_file"
         fi
         send_to_telegram "$add_to_add" "$TG_BOT_CHANNEL" "$ad_img"
