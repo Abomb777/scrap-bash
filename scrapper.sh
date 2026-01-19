@@ -1542,6 +1542,7 @@ for ((idx=${#ADS_DATA_LIST[@]}-1; idx>=0; idx--)); do
         # Replace the " | " separator with a real newline for better Telegram formatting
         add_to_add="${ad_to_send// | /$'\n'}"
         full_message="${full_message}${add_to_add}"$'\n\n'
+        full_message=$(echo ${full_message} | sed -E 's/([A-Z_]+\:)/\*\1\* /g')
         send_info=1
         #echo "--> Sending to Telegram: $add_to_add"
         if [ -n "$zip_file" ]; then
