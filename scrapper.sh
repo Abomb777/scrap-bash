@@ -19,6 +19,8 @@ MAX_PAGES_BACK=1
 DELAY_SECONDS=1
 CATEGORY=1
 TEMP_KW_PREFIX=$(date +%Y%m%d)
+OPENAI_API_KEY=""
+GPT_MODEL="gpt-3.5-turbo"
 
 # Get current directory, fallback to . if pwd fails (can happen when piped)
 CURRENT_DIR=$(pwd 2>/dev/null || echo ".")
@@ -62,7 +64,7 @@ echo "------------------------------------------"
 sleep 5
 
 
-while getopts "c:l:dt:q:x:u:p:w:z:h" opt; do
+while getopts "c:l:dt:q:x:u:p:w:z:g:h" opt; do
     case $opt in
         c) CATEGORY=$OPTARG ;;
         l) DOMAIN=$OPTARG ;;
@@ -74,8 +76,9 @@ while getopts "c:l:dt:q:x:u:p:w:z:h" opt; do
         p) LOGIN_PASSWD=$OPTARG ;;
         w) MAX_PAGES_BACK=$OPTARG ;;
         z) TEMP_KW_PREFIX=$(date +$OPTARG) ;;
+        g) OPENAI_API_KEY=$OPTARG ;;
         h) echo "Usage: $0 -c <category> -l <domain> -d -t <tg_bot_token> -q <tg_bot_channel> -x <tg_bot_channel_txt> -u <login_email> -p <login_password> -w <max_pages_back> -h"; exit 0;;
-        *) echo "Invalid option: -$OPTARG" >&2; exit 1;;
+        #*) echo "Invalid option: -$OPTARG" >&2; exit 1;;
     esac
 done
 
@@ -177,6 +180,106 @@ else
     CURL_CMD="curl"
 fi
 
+
+clean_html() {
+    local html_file="$1"
+    
+    # Remove base64 data - handle various formats
+    # Remove data URLs with base64: data:image/...;base64,<base64_string>
+    html_file=$(echo "$html_file" | sed -E 's/data:[^;]*;base64,[A-Za-z0-9+/=]{20,}//g' 2>/dev/null || echo "$html_file")
+
+    html_file=$(echo "$html_file" | tr -d '\n\r' | sed -e 's/base64[^ |\)|\"]*//g' 2>/dev/null || echo "$html_file")
+
+    # Remove base64: prefix followed by base64 string (at least 20 chars to avoid false positives)
+    html_file=$(echo "$html_file" | sed -E 's/base64[,:;][A-Za-z0-9+/=]{20,}//g' 2>/dev/null || echo "$html_file")
+    # Remove standalone long base64 strings (100+ characters, more likely to be actual base64)
+    # Only match if it contains base64-specific characters (+ or /) to reduce false positives
+    html_file=$(echo "$html_file" | sed -E 's/[A-Za-z0-9+/]{100,}={0,2}//g' 2>/dev/null || echo "$html_file")
+
+
+    
+    # Remove full <style>...</style> and <script>...</script> blocks (including multiline)
+    # Use sed -z so that '.' also matches newlines
+    #html_file=$(printf '%s' "$html_file" | sed -zE 's/<style[^>]*>.*<\/style>//gi; s/<script[^>]*>.*<\/script>//gi' 2>/dev/null || echo "$html_file")
+    html_file=$(echo "$html_file" | sed -E 's/<style[^>]*>[^<]*<\/style>//g' 2>/dev/null || echo "$html_file")
+    html_file=$(echo "$html_file" | sed -E 's/<script[^>]*>[^<]*<\/script>//g' 2>/dev/null || echo "$html_file")
+    #((?!substring).)*
+    #html_file=$(echo "$html_file" | sed -e 's/<style[^>]*>((?!<\/style>).)*<\/style>//g' 2>/dev/null || echo "$html_file")
+    #html_file=$(echo "$html_file" | sed -e 's/<script[^>]*>((?!<\/script>).)*<\/script>//g' 2>/dev/null || echo "$html_file")
+
+    html_file=$(echo "$html_file" | sed -E 's/<style[^>]*>.*<\/style>//g' | sed -E 's/<script[^>]*>.*<\/script>//g')
+    #html_file=$(printf '%s\n' "$html_file" | sed '/<style[^>]*>/,/<\/style>/d' | sed '/<script[^>]*>/,/<\/script>/d')
+    #echo "Cleaned HTML: $html_file"
+    #exit 0
+
+    # Decode HTML entities (common ones)
+    html_file=$(echo "$html_file" | sed -E 's/&nbsp;/ /g; s/&amp;/\&/g; s/&lt;/</g; s/&gt;/>/g; s/&quot;/"/g; s/&#039;/'"'"'/g; s/&apos;/'"'"'/g' 2>/dev/null)
+    
+    # Clean up whitespace: normalize multiple spaces/newlines/tabs to single spaces
+    html_file=$(echo "$html_file" | tr '\n' ' ' 2>/dev/null | tr '\r' ' ' 2>/dev/null | tr '\t' ' ' 2>/dev/null | sed -E 's/[[:space:]]+/ /g' 2>/dev/null | sed -E 's/^[[:space:]]+//g' 2>/dev/null | sed -E 's/[[:space:]]+$//g' 2>/dev/null)
+    
+
+    # Remove HTML comments (<!-- ... -->)
+    # Since newlines are already converted to spaces above, use simple pattern
+    # Pattern matches <!-- followed by any chars until first -->
+    prev=""
+    iteration=0
+    while [ "$html_file" != "$prev" ] && [ $iteration -lt 20 ]; do
+        prev="$html_file"
+        # Match <!-- followed by any characters until -->
+        # [^-]* matches non-dash chars, - matches dash, [^-]* matches more non-dash, then -->
+        html_file=$(echo "$html_file" | sed -E 's/<!--[^-]*-[^-]*-->//g' 2>/dev/null || echo "$html_file")
+        # Simpler pattern: match until first occurrence of -->
+        if [ "$html_file" == "$prev" ]; then
+            html_file=$(echo "$html_file" | sed -E 's/<!--[^>]*-->//g' 2>/dev/null || echo "$html_file")
+        fi
+        # Greedy fallback for edge cases
+        if [ "$html_file" == "$prev" ]; then
+            html_file=$(echo "$html_file" | sed -E 's/<!--.*-->//g' 2>/dev/null || echo "$html_file")
+        fi
+        iteration=$((iteration + 1))
+    done
+    html_file=$(echo "$html_file" | sed -e 's/<[^>]*>//g' 2>/dev/null || echo "$html_file")
+
+    html_file=$(echo "$html_file" | sed -E 's/[^[:alnum:],.:-]/ /g' 2>/dev/null || echo "$html_file")
+    # Final check - if still empty, something is wrong
+    if [ -z "$html_file" ]; then
+        if [ "$DEBUG_DATA" -eq 1 ]; then
+            echo "Warning: Final output is empty" >&2
+        fi
+        echo "$1"
+        return 1
+    fi
+    if [ "$DEBUG_DATA" -eq 1 ]; then
+        echo "Cleaned HTML: $html_file" >&2
+    fi
+    
+    echo "$html_file"
+}
+
+gpt_name() {
+    local message="$1"
+    escaped_message=$(echo "$message" | sed 's/"/\\"/g')
+    local prompt="$2"
+    local response=$(curl -s -X POST "https://api.openai.com/v1/chat/completions" \
+        -H "Authorization: Bearer $OPENAI_API_KEY" \
+        -H "Content-Type: application/json" \
+        -d "{\"model\": \"$GPT_MODEL\", \"messages\": [{\"role\": \"user\", \"content\": \"$escaped_message\"}]}")
+   
+    if [ "$DEBUG_DATA" -eq 1 ]; then
+        echo "GPT Response: $response" >&2 
+     echo "--------------------------------" >&2
+    fi
+    response=$(echo "$response" | jq -r '.choices[0].message.content')
+    if [ "$DEBUG_DATA" -eq 1 ]; then
+        echo "GPT Response: $response" >&2 
+     echo "--------------------------------" >&2
+    fi
+    echo "$response"
+}
+
+
+
 nl2nlll() {
     local string="${1}"
     # Replace newlines and carriage returns with URL-encoded equivalents
@@ -185,6 +288,16 @@ nl2nlll() {
     local encoded=$(printf '%s' "$string" | tr '\r' '\001' | tr '\n' '\002' | sed 's/\001/%0D/g; s/\002/%0A/g')
     echo "${encoded}"
 }
+
+#gpt_name() {
+#    local message="$1"
+#    local prompt="$2"
+#    local response=$(curl -s -X POST "https://api.openai.com/v1/chat/completions" \
+#        -H "Authorization: Bearer $OPENAI_API_KEY" \
+#        -H "Content-Type: application/json" \
+#        -d '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "$message"}]}' \
+#        | jq -r '.choices[0].message.content')
+#}
 
 send_to_telegram() {
     echo "Delaying for $DELAY_SECONDS seconds..."
@@ -755,6 +868,15 @@ image_download() {
                 # Fallback for systems without stat
                 file_size=$(wc -c < "$image_file" 2>/dev/null || echo "0")
             fi
+            echo "Image file size: $file_size" >&2
+            if [ "$file_size" -gt 1000000 ]; then
+                echo "--------- Image file size is too large: $file_size" >&2
+                #rm -f "$image_file"
+                #echo ""
+                #return
+            else
+                echo "+++++++++++ Image file size is valid: $file_size" >&2
+            fi
         fi
         
         # Check if file has content and is likely an image (not HTML error page)
@@ -1027,17 +1149,134 @@ extract_kw() {
     local html_file="$1"
     # Extract all link texts from the HTML (handling strings with multiple words, trimming whitespace and quotes)
     local atags_array=()
-    readarray -t atags_array < <(grep -oP '<a\b[^>]*>\K[^<]+(?=</a>)' "$html_file" | sed -E "s/^[[:space:]\"\“\”\‘\’\']+|[[:space:]\"\“\”\‘\’\']+$//g" | grep -v '^$')
+    #readarray -t atags_array < <(grep -oP '<a\b[^>]*>\K[^<]+(?=</a>)' "$html_file" | sed -E "s/^[[:space:]\"\“\”\‘\’\']+|[[:space:]\"\“\”\‘\’\']+$//g" | grep -v '^$')
+    readarray -t atags_array < <(cat "$html_file" | tr '\n' ' ' | grep -oP '.{0,100}<a\b[^>]*>.*?</a>.{0,100}' | while read -r line; do
+        # 1. Extract the text inside the <a> tag
+        link_text=$(echo "$line" | grep -oP '<a\b[^>]*>\K.*?(?=</a>)' | sed -E 's/<[^>]+>//g')
+        
+        # 2. Get the context (text before and after the link)
+        context_before=$(echo "$line" | grep -oP '^.*?(?=<a\b)')
+        context_after=$(echo "$line" | grep -oP '(?<=</a>).*$')
+        
+        # 3. Strip HTML tags from context to count actual visible text
+        plain_before=$(echo "$context_before" | sed -E 's/<[^>]+>//g')
+        plain_after=$(echo "$context_after" | sed -E 's/<[^>]+>//g')
+        
+        # 4. Check if total text length is > 100
+        total_len=$(( ${#plain_before} + ${#plain_after} ))
+        
+        if [ "$total_len" -ge 100 ]; then
+            # Clean up special quotes and whitespace
+            echo "$link_text" | sed -E "s/^[[:space:]{'\"“‘]+|[[:space:]{'\"”’]+$//g" | grep -v '^$'
+        fi
+    done)
     # Extract paragraphs and get only the first word from each
     local paragraphs_array=()
     readarray -t paragraphs_array < <(grep -oP '<p\b[^>]*>\K[^<]+(?=</p>)' "$html_file" | sed -E "s/^[[:space:]\"\“\”\‘\’\']+|[[:space:]\"\“\”\‘\’\']+$//g" | grep -v '^$' | awk '{print $1}')
     local bolds_array=()
     readarray -t bold_array < <(grep -oP '<b\b[^>]*>\K[^<]+(?=</b>)' "$html_file" | sed -E "s/^[[:space:]\"\“\”\‘\’\']+|[[:space:]\"\“\”\‘\’\']+$//g" | grep -v '^$' | awk '{print $1}')
     # Merge both arrays
-    local merged_array=("${atags_array[@]}" "${paragraphs_array[@]}" "${bold_array[@]}")
+    local merged_array=("${atags_array[@]}" "${atags_array[@]}" "${paragraphs_array[@]}" "${bold_array[@]}")
     
     # Output merged array, one element per line
     printf '%s\n' "${merged_array[@]}"
+}
+
+get_top_keyword() {
+    top_keyword=""
+    local keywords=("${@}")
+    local top_3_phrases=()
+    local top_3_with_counts=()
+    local opt_entry=()
+    local opt_count=()
+    local opt_kw_clean=()
+    local alpha_count=()
+    local min_kw_length=4
+    local min_kw_count=2
+    
+    if [ ${#keywords[@]} -gt 0 ]; then
+        if [ "$DEBUG_DATA" -eq 1 ]; then
+            echo "  - Total keywords found: ${#keywords[@]}" >&2
+            echo "  - All keywords: ${keywords[*]}" >&2
+        fi
+        
+        # Get top 3 phrases with counts for processing
+        local top_3_with_counts=$(printf "%s\n" "${keywords[@]}" | sort | uniq -c | sort -rn | head -n 3)
+        
+        if [ "$DEBUG_DATA" -eq 1 ]; then
+            echo "  - Raw uniq -c output:" >&2
+            printf "%s\n" "${keywords[@]}" | sort | uniq -c | sort -rn | head -n 3 | while IFS= read -r line; do
+                echo "    '$line'" >&2
+            done
+        fi
+        
+        # Debug: show what we got
+        if [ "$DEBUG_DATA" -eq 1 ]; then
+            echo "  - Top 3 with counts:" >&2
+            echo "$top_3_with_counts" | while IFS= read -r line; do
+                echo "    '$line'" >&2
+            done
+        fi
+        
+        # Add only top 3 phrases (without counts) to global list
+        readarray -t top_3_phrases < <(echo "$top_3_with_counts" | sed -E 's/:.*$//' | sed -E 's/^[[:space:]]*[0-9]+[[:space:]]+//')
+        KEYWORDS_LIST+=("${top_3_phrases[@]}")
+        
+        # Process top 3 entries with counts to find the best keyword
+        # Count how many entries we have
+        local entry_count=$(echo "$top_3_with_counts" | grep -c '^' || echo "0")
+        if [ "$DEBUG_DATA" -eq 1 ]; then
+            echo "  - Total entries to check: $entry_count" >&2
+        fi
+        
+        while IFS= read -r opt_entry; do
+            if [ -z "$opt_entry" ]; then
+                continue
+            fi
+            local opt_count=$(echo "$opt_entry" | awk '{print $1}')
+            local opt_kw_clean=$(echo "$opt_entry"  | sed -E 's/:.*$//' | sed -E 's/^[[:space:]]*[0-9]+[[:space:]]+//')
+            local alpha_count=$(echo "$opt_kw_clean" | grep -o '[a-zA-Z]' | wc -l)
+            
+            # Debug output
+            if [ "$DEBUG_DATA" -eq 1 ]; then
+                echo "  - Checking keyword: '$opt_kw_clean', count: '$opt_count', alpha_count: $alpha_count, min_kw_count: $min_kw_count, min_kw_length: $min_kw_length" >&2
+            fi
+            
+            # Check if opt_count is a valid number and meets criteria
+            if [[ "$opt_count" =~ ^[0-9]+$ ]] && [ -n "$opt_kw_clean" ]; then
+                if [ "$opt_count" -gt $min_kw_count ] && [ "$alpha_count" -gt $min_kw_length ]; then
+
+                    local skip_this=0
+                    for skip_kw in "${SKIP_KEYWORDS_LIST[@]}"; do
+                        if [ "$opt_kw_clean" == "$skip_kw" ] ||  [[ "$opt_kw_clean" == *"$skip_kw"* ]]; then
+                            skip_this=1
+                            break
+                        fi
+                    done
+                    if [ $skip_this -eq 1 ]; then
+                        if [ "$DEBUG_DATA" -eq 1 ]; then
+                            echo "  - Skipping top keyword (in SKIP_KEYWORDS_LIST): $opt_kw_clean" >&2
+                        fi
+                        # Continue to next entry instead of breaking
+                        continue
+                    else
+                        top_keyword="$opt_kw_clean"
+                        if [ "$DEBUG_DATA" -eq 1 ]; then
+                            echo "  - Selected keyword: '$top_keyword'" >&2
+                        fi
+                        break
+                    fi
+                elif [ "$DEBUG_DATA" -eq 1 ]; then
+                    echo "  - Rejected: count check=$([ "$opt_count" -gt $min_kw_count ] && echo "PASS" || echo "FAIL"), alpha check=$([ "$alpha_count" -gt $min_kw_length ] && echo "PASS" || echo "FAIL")" >&2
+                    echo "  - Continuing to next entry..." >&2
+                fi
+            elif [ "$DEBUG_DATA" -eq 1 ]; then
+                echo "  - Rejected: invalid count format or empty keyword" >&2
+                echo "  - Continuing to next entry..." >&2
+            fi
+        done <<< "$top_3_with_counts"
+    fi
+    echo "$top_keyword"
 }
 
 # Function to get keywords from IDs
@@ -1138,19 +1377,24 @@ get_keywords() {
         # Extract keywords from HTML file using extract_kw function
         readarray -t keywords < <(extract_kw "$html_file")
         
-        if [ ${#keywords[@]} -gt 0 ]; then
-            echo "Keywords found: ${#keywords[@]}"
-            # Show frequency for current ID (top 3)
-            printf "%s\n" "${keywords[@]}" | sort | uniq -c | sort -rn | head -n 3
-            
-            # Add only top 3 phrases to global list
-            readarray -t top_3_phrases < <(printf "%s\n" "${keywords[@]}" | sort | uniq -c | sort -rn | head -n 3 | sed -E 's/^[[:space:]]*[0-9]+[[:space:]]+//')
-            KEYWORDS_LIST+=("${top_3_phrases[@]}")
-            
-            # Find the first resulted Keyword with max repeats for this ID
-            local top_entry=$(printf "%s\n" "${keywords[@]}" | sort | uniq -c | sort -rn | head -n 1)
-            local top_count=$(echo "$top_entry" | awk '{print $1}')
-            local top_keyword=$(echo "$top_entry" | sed -E 's/^[[:space:]]*[0-9]+[[:space:]]+//')
+        top_keyword=""
+       #echo "All Keywords: ${keywords[@]}"
+        top_keyword=$(get_top_keyword "${keywords[@]}")
+        echo -e "${GREEN}Top keyword: $top_keyword${NC}"
+
+
+
+        if [ "$top_keyword" == "" ] && [ -n "$OPENAI_API_KEY" ]; then
+            echo "Processing GPT for ID: ${id}"
+            the_html_file="${html_file}"
+            cleaned_html_file=$(clean_html "$(cat "$the_html_file")")
+            echo "Cleaned HTML file: $cleaned_html_file"
+            gptresult=$(gpt_name "What is the name of offer. return me only the name: $cleaned_html_file")
+            echo "GPT result: $gptresult"
+            if [ -n "$gptresult" ]; then
+                top_keyword="$gptresult"
+                echo "GPT result: $gptresult"
+            fi
         fi
 
         if [ -n "$url_in_file" ]; then
@@ -1173,42 +1417,22 @@ get_keywords() {
             done
         fi
         
-        if [ ${#keywords[@]} -gt 0 ]; then
-            # Count alphabetic characters in top_keyword
-            #if [ -n "$top_keyword" ] && [ "$top_count" -gt 2 ] && [[ "$top_keyword" =~ [a-zA-Z] ]]; then
-            local alpha_count=$(echo "$top_keyword" | grep -o '[a-zA-Z]' | wc -l)
-            if [ -n "$top_keyword" ] && [ "$top_count" -gt 2 ] && [ "$alpha_count" -gt 3 ]; then
-                # Check if top_keyword is in SKIP_KEYWORDS_LIST
-                local skip_this=0
-                for skip_kw in "${SKIP_KEYWORDS_LIST[@]}"; do
-                    if [ "$top_keyword" == "$skip_kw" ]; then
-                        skip_this=1
-                        break
-                    fi
-                done
-                
-                if [ $skip_this -eq 1 ]; then
-                    echo "  - Skipping top keyword (in SKIP_KEYWORDS_LIST): $top_keyword"
-                    continue
+        if [ "$top_keyword" != "" ]; then
+            # Check if it already exists in UNIQUE_KEYWORDS_LIST
+            local already_exists=0
+            for existing in "${UNIQUE_KEYWORDS_LIST[@]}"; do
+                if [ "$existing" == "$top_keyword" ]; then
+                    already_exists=1
+                    break
                 fi
-
-                # Check if it already exists in UNIQUE_KEYWORDS_LIST
-                local already_exists=0
-                for existing in "${UNIQUE_KEYWORDS_LIST[@]}"; do
-                    if [ "$existing" == "$top_keyword" ]; then
-                        already_exists=1
-                        break
-                    fi
-                done
-                
-                # Add only if it does not exist
-                if [ $already_exists -eq 0 ]; then
-                    UNIQUE_KEYWORDS_LIST+=("$top_keyword")
-                    echo "  - Added unique top keyword (count $top_count): $top_keyword"
-                fi
+            done
+            
+            # Add only if it does not exist
+            if [ $already_exists -eq 0 ]; then
+                UNIQUE_KEYWORDS_LIST+=("$top_keyword")
+                echo -e "${GREEN}  - Added unique top keyword: $top_keyword${NC}" >&2
             else
-                echo "  - Skipping top keyword (count $top_count): $top_keyword"
-                continue
+                echo -e "${RED}  - Duplicate top keyword: $top_keyword${NC}" >&2
             fi
         else
             echo "Error: No keywords found for ID ${id}"
