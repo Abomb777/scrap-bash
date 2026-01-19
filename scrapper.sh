@@ -869,13 +869,13 @@ image_download() {
                 file_size=$(wc -c < "$image_file" 2>/dev/null || echo "0")
             fi
             echo "Image file size: $file_size" >&2
-            if [ "$file_size" -gt 1000000 ]; then
-                echo "--------- Image file size is too large: $file_size" >&2
+            if [ "$file_size" -gt 8000 ]; then
+                echo "${GREEN}--------- Image file size is good enough: $file_size${NC}" >&2
                 #rm -f "$image_file"
                 #echo ""
                 #return
             else
-                echo "+++++++++++ Image file size is valid: $file_size" >&2
+                echo "${RED}+++++++++++ Image file size is too small: $file_size${NC}" >&2
             fi
         fi
         
