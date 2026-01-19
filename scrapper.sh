@@ -319,6 +319,9 @@ send_to_telegram() {
         #echo -e "\033[0;32mSending to Telegram: $message\033[0m"
         echo -e "${GREEN}--------------------------------${NC}"
         echo -e "${GREEN}REAL SEND: $message${NC}"
+        if [ -n "$zip_file" ]; then
+            echo -e "${GREEN}Zip file: $zip_file${NC}"
+        fi
         echo -e "${GREEN}--------------------------------${NC}"
     fi
 
@@ -1609,9 +1612,11 @@ for ((idx=${#ADS_DATA_LIST[@]}-1; idx>=0; idx--)); do
 
         # Replace the " | " separator with a real newline for better Telegram formatting
         add_to_add="${ad_to_send// | /$'\n'}"
+
         full_message="${full_message}${add_to_add}"$'\n\n'
-        full_message=$(echo ${full_message} | sed -E 's/([A-Z_]+\:)/\*\1\* /g')
-        full_message=$(htmldecode ${full_message})
+
+        add_to_add=$(echo ${add_to_add} | sed -E 's/([A-Z_]+\:)/\*\1\* /g')
+        add_to_add=$(htmldecode ${add_to_add})
         send_info=1
         #echo "--> Sending to Telegram: $add_to_add"
         if [ -n "$zip_file" ]; then
