@@ -1544,8 +1544,10 @@ for ((idx=${#ADS_DATA_LIST[@]}-1; idx>=0; idx--)); do
         full_message="${full_message}${add_to_add}"$'\n\n'
         send_info=1
         #echo "--> Sending to Telegram: $add_to_add"
+        if [ -n "$zip_file" ]; then
+            send_to_telegram "$add_to_add" "$TG_BOT_CHANNEL" "$ad_img" "$zip_file"
+        fi
         send_to_telegram "$add_to_add" "$TG_BOT_CHANNEL" "$ad_img"
-        send_to_telegram "$add_to_add" "$TG_BOT_CHANNEL" "$ad_img" "$zip_file"
         #exit 1
         echo "$line_id" > $POSITIONS_FILE
         echo "Added to positions file: $line_id"
