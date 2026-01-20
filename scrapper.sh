@@ -1609,10 +1609,10 @@ for ((idx=${#ADS_DATA_LIST[@]}-1; idx>=0; idx--)); do
         ad_to_send=$(echo "$ad" | sed -E 's/ \| IMG:[^|]*/ /g')
         ad_to_send=$(echo "$ad_to_send" | sed -E 's/ \| DOMAIN_NAME:[^|]*/ /g')
         ad_to_send=$(echo "$ad_to_send" | sed -E 's/ \| ZIP_FILE:[^|]*/ /g')
-
+ 
         # Replace the " | " separator with a real newline for better Telegram formatting
         add_to_add="${ad_to_send// | /$'\n'}"
-
+        echo "--> add_to_add___: $add_to_add"
         full_message="${full_message}${add_to_add}"$'\n\n'
 
         add_to_add=$(echo "$add_to_add" | sed -E 's/([A-Z_]+\:)/<b>\1</b> /g')
