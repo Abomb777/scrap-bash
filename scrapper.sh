@@ -1733,7 +1733,8 @@ for ((idx=${#ADS_DATA_LIST[@]}-1; idx>=0; idx--)); do
         echo "--> add_to_add___: $add_to_add"
         full_message="${full_message}${add_to_add}"$'\n\n'
 
-        add_to_add=$(echo "$add_to_add" | sed -E 's/([A-Z_]+\:)/<b>\1</b> /g')
+        #add_to_add=$(echo "$add_to_add" | sed -E 's/([A-Z_]+\:)/<b>\1</b> /g')
+        add_to_add=$(echo "$add_to_add" | sed -E 's/([A-Z_]+\:)/<b>\1<\/b> /g')
         #add_to_add=$(htmldecode "${add_to_add}")
         echo "--> add_to_add: $add_to_add"
         send_info=1
