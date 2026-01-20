@@ -257,7 +257,7 @@ clean_html() {
     echo "$html_file"
 }
 
-gpt_name() {
+gpt_name_tmp() {
     local message="$1"
     escaped_message=$(echo "$message" | sed 's/"/\\"/g')
     local prompt="$2"
@@ -274,14 +274,15 @@ gpt_name() {
     # Extract "content" from JSON response using only basic bash/tools (no jq, no python)
     # 1. Collapse to single line
     local one_line
-    one_line=$(printf '%s' "$response" | tr -d '\n')
+    one_line=$(printf '%s' "$response" | tr -d '\n\r')
 
-    # 2. Roughly cut out the content field:
-    #    - remove everything up to `"content":"`
-    #    - then cut everything after the closing `","role"` or `","refusal"` marker
+    # 2. Extract content field value:
+    #    - Find "content":" and extract everything after it
+    #    - Stop at the first "," (quote-comma) which marks the end of the string value
     local raw_content
     raw_content=$(printf '%s' "$one_line" \
-        | sed -E 's/.*"content"[[:space:]]*:[[:space:]]*"//; s/","(role|refusal)".*//')
+        | sed -E 's/.*"content"[[:space:]]*:[[:space:]]*"//' \
+        | sed -E 's/",.*//')
 
     # 3. Unescape common JSON escape sequences inside content
     #    - \"  -> "
@@ -304,6 +305,53 @@ gpt_name() {
     echo "$response"
 }
 
+gpt_name() {
+    local message="$1"
+    escaped_message=$(echo "$message" | sed 's/"/\\"/g')
+    local prompt="$2"
+    local response=$(curl -s -X POST "https://api.openai.com/v1/chat/completions" \
+        -H "Authorization: Bearer $OPENAI_API_KEY" \
+        -H "Content-Type: application/json" \
+        -d "{\"model\": \"$GPT_MODEL\", \"messages\": [{\"role\": \"user\", \"content\": \"$escaped_message\"}]}")
+
+    if [ "$DEBUG_DATA" -eq 1 ]; then
+        echo "GPT raw response: $response" >&2
+        echo "--------------------------------" >&2
+    fi
+    # Alternative of  response=$(echo "$response" | jq -r '.choices[0].message.content')
+    # Extract "content" from JSON response using only basic bash/tools (no jq, no python)
+    # 1. Collapse to single line
+    local one_line
+    one_line=$(printf '%s' "$response" | tr -d '\n\r')
+
+    # 2. Extract content field value:
+    #    - Find "content":" and extract everything after it
+    #    - Stop at the first "," (quote-comma) which marks the end of the string value
+    local raw_content
+    raw_content=$(printf '%s' "$one_line" \
+        | sed -E 's/.*"content"[[:space:]]*:[[:space:]]*"//' \
+        | sed -E 's/",.*//')
+
+    # 3. Unescape common JSON escape sequences inside content
+    #    - \"  -> "
+    #    - \\  -> \
+    #    - \n  -> real newline
+    #    - \r  -> removed
+    local parsed_content
+    parsed_content=$(printf '%s' "$raw_content" \
+        | sed 's/\\"/"/g; s/\\\\/\\/g; s/\\r//g; s/\\n/\n/g')
+
+    # Fallback: if parsing failed (empty), keep original response
+    if [ -n "$parsed_content" ]; then
+        response="$parsed_content"
+    fi
+
+    if [ "$DEBUG_DATA" -eq 1 ]; then
+        echo "GPT parsed content: $response" >&2
+        echo "--------------------------------" >&2
+    fi
+    echo "$response"
+}
 
 
 nl2nlll() {
