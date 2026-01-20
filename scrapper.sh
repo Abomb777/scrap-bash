@@ -265,15 +265,41 @@ gpt_name() {
         -H "Authorization: Bearer $OPENAI_API_KEY" \
         -H "Content-Type: application/json" \
         -d "{\"model\": \"$GPT_MODEL\", \"messages\": [{\"role\": \"user\", \"content\": \"$escaped_message\"}]}")
-   
+
     if [ "$DEBUG_DATA" -eq 1 ]; then
-        echo "GPT Response: $response" >&2 
-     echo "--------------------------------" >&2
+        echo "GPT raw response: $response" >&2
+        echo "--------------------------------" >&2
     fi
-    response=$(echo "$response" | jq -r '.choices[0].message.content')
+    # Alternative of  response=$(echo "$response" | jq -r '.choices[0].message.content')
+    # Extract "content" from JSON response using only basic bash/tools (no jq, no python)
+    # 1. Collapse to single line
+    local one_line
+    one_line=$(printf '%s' "$response" | tr -d '\n')
+
+    # 2. Roughly cut out the content field:
+    #    - remove everything up to `"content":"`
+    #    - then cut everything after the closing `","role"` or `","refusal"` marker
+    local raw_content
+    raw_content=$(printf '%s' "$one_line" \
+        | sed -E 's/.*"content"[[:space:]]*:[[:space:]]*"//; s/","(role|refusal)".*//')
+
+    # 3. Unescape common JSON escape sequences inside content
+    #    - \"  -> "
+    #    - \\  -> \
+    #    - \n  -> real newline
+    #    - \r  -> removed
+    local parsed_content
+    parsed_content=$(printf '%s' "$raw_content" \
+        | sed 's/\\"/"/g; s/\\\\/\\/g; s/\\r//g; s/\\n/\n/g')
+
+    # Fallback: if parsing failed (empty), keep original response
+    if [ -n "$parsed_content" ]; then
+        response="$parsed_content"
+    fi
+
     if [ "$DEBUG_DATA" -eq 1 ]; then
-        echo "GPT Response: $response" >&2 
-     echo "--------------------------------" >&2
+        echo "GPT parsed content: $response" >&2
+        echo "--------------------------------" >&2
     fi
     echo "$response"
 }
