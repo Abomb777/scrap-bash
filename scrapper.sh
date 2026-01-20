@@ -1222,7 +1222,7 @@ get_ids() {
 # Function to extract keywords from HTML file
 # Takes html_file path as parameter
 # Returns keywords array via stdout (one keyword per line)
-extract_kw() {
+extract_kw_old() {
     local html_file="$1"
     # Extract all link texts from the HTML (handling strings with multiple words, trimming whitespace and quotes)
     local atags_array=()
@@ -1254,6 +1254,50 @@ extract_kw() {
     readarray -t bold_array < <(grep -oP '<b\b[^>]*>\K[^<]+(?=</b>)' "$html_file" | sed -E "s/^[[:space:]\"\“\”\‘\’\']+|[[:space:]\"\“\”\‘\’\']+$//g" | grep -v '^$' | awk '{print $1}')
     # Merge both arrays
     local merged_array=("${atags_array[@]}" "${atags_array[@]}" "${paragraphs_array[@]}" "${bold_array[@]}")
+    
+    # Output merged array, one element per line
+    printf '%s\n' "${merged_array[@]}"
+}
+
+extract_kw() {
+    local html_file="$1"
+    # Extract all link texts from the HTML (handling strings with multiple words, trimming whitespace and quotes)
+    local atags_array=()
+    #readarray -t atags_array < <(grep -oP '<a\b[^>]*>\K[^<]+(?=</a>)' "$html_file" | sed -E "s/^[[:space:]\"\“\”\‘\’\']+|[[:space:]\"\“\”\‘\’\']+$//g" | grep -v '^$')
+    readarray -t atags_array < <(cat "$html_file" | tr '\n' ' ' | grep -oP '.{0,100}<a\b[^>]*>[^<|>]*</a>.{0,100}' | while read -r line; do
+        # 1. Extract the text inside the <a> tag
+        #echo "Line: $line" >&2
+        link_text=$(echo "$line" | grep -oP '<a\b[^>]*>\K[^<|>]*(?=</a>)' | sed -E 's/<[^>]+>//g')
+        #echo "Link text: $link_text" >&2
+        # 2. Get the context (text before and after the link)
+        context_before=$(echo "$line" | grep -oP '^.*?(?=<a\b)')
+        context_after=$(echo "$line" | grep -oP '(?<=</a>).*$')
+        
+        # 3. Strip HTML tags from context to count actual visible text
+        plain_before=$(echo "$context_before" | sed -E 's/<[^>]+>//g')
+        plain_after=$(echo "$context_after" | sed -E 's/<[^>]+>//g')
+        
+        # 4. Check if total text length is > 100
+        total_len=$(( ${#plain_before} + ${#plain_after} ))
+        
+        if [ "$total_len" -ge 100 ]; then
+            # Clean up special quotes and whitespace
+            echo "$link_text" | sed -E "s/^[[:space:]{'\"“‘]+|[[:space:]{'\"”’]+$//g" | grep -v '^$'
+        fi
+    done)
+    #echo "ATags: ${atags_array[@]}" >&2
+    # Extract paragraphs and get only the first word from each
+    local paragraphs_array=()
+    readarray -t paragraphs_array < <(grep -oP '<p\b[^>]*>\K[^<]+(?=</p>)' "$html_file" | sed -E "s/^[[:space:]\"\“\”\‘\’\']+|[[:space:]\"\“\”\‘\’\']+$//g" | grep -v '^$' | awk '{print $1}')
+    #echo "Paragraphs: ${paragraphs_array[@]}" >&2
+    local bolds_array=()
+    readarray -t bold_array < <(grep -oP '<b\b[^>]*>\K[^<]+(?=</b>)' "$html_file" | sed -E "s/^[[:space:]\"\“\”\‘\’\']+|[[:space:]\"\“\”\‘\’\']+$//g" | grep -v '^$' | awk '{print $1}')
+    #echo "Bolds: ${bold_array[@]}" >&2
+    local prod_array=()
+    readarray -t prod_array < <(grep -oP '<product[a-z]*>\K[^<]+(?=</product[a-z]*>)' "$html_file" | sed -E "s/^[[:space:]\"\“\”\‘\’\']+|[[:space:]\"\“\”\‘\’\']+$//g" | grep -v '^$' | awk '{print $1}')
+    #echo "Product: ${prod_array[@]}" >&2
+    # Merge both arrays
+    local merged_array=("${atags_array[@]}" "${paragraphs_array[@]}" "${bold_array[@]}" "${prod_array[@]}")
     
     # Output merged array, one element per line
     printf '%s\n' "${merged_array[@]}"
