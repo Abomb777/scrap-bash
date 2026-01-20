@@ -12,7 +12,7 @@ DOMAIN=""
 TG_BOT_TOKEN=""
 TG_BOT_CHANNEL=""
 TG_BOT_CHANNEL_TXT=""
-TG_DEBUGER=false
+TG_DEBUGER=true
 
 DEBUG_DATA=0
 MAX_PAGES_BACK=1
@@ -1616,7 +1616,7 @@ for ((idx=${#ADS_DATA_LIST[@]}-1; idx>=0; idx--)); do
         full_message="${full_message}${add_to_add}"$'\n\n'
 
         add_to_add=$(echo "$add_to_add" | sed -E 's/([A-Z_]+\:)/<b>\1</b> /g')
-        add_to_add=$(htmldecode "${add_to_add}")
+        #add_to_add=$(htmldecode "${add_to_add}")
         echo "--> add_to_add: $add_to_add"
         send_info=1
         #echo "--> Sending to Telegram: $add_to_add"
