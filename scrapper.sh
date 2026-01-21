@@ -443,6 +443,9 @@ send_to_telegram() {
     # Add document if zip_file is provided
     local has_document=false
     if [ -n "$zip_file" ] && [ -f "$zip_file" ]; then
+        if [ "$TG_DEBUGER" = true ]; then
+            echo -e "${GREEN}------Zip file: $zip_file------${NC}" >&2
+        fi
         media_items+=("{\"type\":\"document\",\"media\":\"attach://document\"}")
         has_document=true
     fi
@@ -484,6 +487,9 @@ send_to_telegram() {
         
         # Add zip file if it exists
         if [ -n "$zip_file" ] && [ -f "$zip_file" ]; then
+            if [ "$TG_DEBUGER" = true ]; then
+                echo -e "${GREEN}------msg Zip file: $zip_file------${NC}" >&2
+            fi
             if [ "$first_item" = true ]; then
                 media_json="${media_json}{\"type\":\"document\",\"media\":\"attach://file${file_counter}\",\"caption\":\"${caption_escaped}\",\"parse_mode\":\"HTML\"}"
                 first_item=false
@@ -660,7 +666,7 @@ send_to_telegram() {
         )
     fi
 
-    if [ $DEBUG_DATA -eq 1 ]; then
+    if [ $DEBUG_DATA -eq 1 ] || [ "$TG_DEBUGER" = true ]; then
         echo "DEBUG: curl_args:" >&2
         printf "  %s\n" "${curl_args[@]}" >&2
     fi
