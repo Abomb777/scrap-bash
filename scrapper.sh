@@ -443,7 +443,7 @@ send_to_telegram() {
     # Add document if zip_file is provided
     local has_document=false
     if [ -n "$zip_file" ] && [ -f "$zip_file" ]; then
-        if [ "$TG_DEBUGER" = true ]; then
+        if [ "$TG_DEBUGER" = true ] || [ "$DEBUG_DATA" -eq 1 ]; then
             echo -e "${GREEN}------Zip file: $zip_file------${NC}" >&2
         fi
         media_items+=("{\"type\":\"document\",\"media\":\"attach://document\"}")
@@ -454,7 +454,7 @@ send_to_telegram() {
     # If we have both, send both as documents in a media group (one message)
     if [ "$has_photo" = true ] && [ "$has_document" = true ]; then
         # Send both photo and zip as documents in a media group
-        if [ "$TG_DEBUGER" = true ]; then
+        if [ "$TG_DEBUGER" = true ] || [ "$DEBUG_DATA" -eq 1 ]; then
             echo "DEBUG: Mixed media types detected, sending both as documents in media group" >&2
         fi
         
@@ -666,7 +666,7 @@ send_to_telegram() {
         )
     fi
 
-    if [ $DEBUG_DATA -eq 1 ] || [ "$TG_DEBUGER" = true ]; then
+    if [ $DEBUG_DATA -eq 1 ]; then # || [ "$TG_DEBUGER" = true ]
         echo "DEBUG: curl_args:" >&2
         printf "  %s\n" "${curl_args[@]}" >&2
     fi
