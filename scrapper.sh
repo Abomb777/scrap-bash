@@ -1516,7 +1516,7 @@ get_keywords() {
             the_html_file="${html_file}"
             cleaned_html_file=$(clean_html "$(cat "$the_html_file")")
             echo "Cleaned HTML file: $cleaned_html_file"
-            gptresult=$(gpt_name "What is the name of offer. return me only the name: $cleaned_html_file")
+            gptresult=$(gpt_name "Extract only the name of the offer or platform from the following text. Return nothing else, no explanations, no extra text—just the offer/platform name.The text: $cleaned_html_file")
             echo "GPT result: $gptresult"
             if [ -n "$gptresult" ]; then
                 top_keyword="$gptresult"
