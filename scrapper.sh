@@ -443,6 +443,11 @@ send_to_telegram() {
     # Add document if zip_file is provided
     local has_document=false
     if [ -n "$zip_file" ] && [ -f "$zip_file" ]; then
+        if [ -f "$zip_file" ]; then
+            echo -e "${GREEN}---EXISTING ZIP FILE---Zip file: $zip_file------${NC}" >&2
+        else 
+            echo -e "${RED}---NOT EXISTING ZIP FILE---Zip file: $zip_file------${NC}" >&2
+        fi
         if [ "$TG_DEBUGER" = true ] || [ "$DEBUG_DATA" -eq 1 ]; then
             echo -e "${GREEN}------Zip file: $zip_file------${NC}" >&2
         fi
