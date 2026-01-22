@@ -378,6 +378,15 @@ send_to_telegram() {
     sleep $DELAY_SECONDS
 
     local message="$1"
+    message_length=$(echo "$message" | wc -c)
+    echo -e "${GREEN}Message length: $message_length${NC}" >&2
+    max_message_length=4096
+    if [ "$message_length" -gt "$max_message_length" ]; then
+        echo -e "${RED}Message length is greater than $max_message_length${NC}" >&2
+        message=$(echo "$message" | head -c $((max_message_length - 100)))
+        message="${message}... (message truncated)"
+        echo -e "${GREEN}Truncated message: $message${NC}" >&2
+    fi
     local chat_id="$2"
     local image_url="${3:-}"  # Optional: URL to image to download and send
     local zip_file="${4:-}"   # Optional: Path to zip file to send as document
