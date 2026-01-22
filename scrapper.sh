@@ -1439,9 +1439,9 @@ get_top_keyword() {
 get_keywords() {
     local target_ids=("${@:-${IDS_LIST[@]}}")
     for id in "${target_ids[@]}"; do
-        echo "Processing ID: ${id}"
+        echo "Processing ID: ${id}" >&2
         if [ $id -le $LAST_SENT_ID ]; then
-            echo "ID $id already sent, skipping"
+            echo "ID $id already sent, skipping" >&2
             continue
         fi
         
@@ -1472,20 +1472,20 @@ get_keywords() {
         
         # Check if we got redirected to login page (session expired)
         if grep -q "Login to your account" ${zip_file}; then
-            echo "Session expired - re-authenticating..."
+            echo "Session expired - re-authenticating..." >&2
             # Extract CSRF token from the login page if available
             local csrf_token=$(grep -oP 'name="_token" value="\K[^"]+' ${zip_file})
             if [ -n "$csrf_token" ]; then
-                echo "Found CSRF token in response, using it for login"
+                echo "Found CSRF token in response, using it for login" >&2
                 # Re-authenticate using login function with the extracted CSRF token
                 login "$csrf_token"
             else
-                echo "CSRF token not found in response, fetching from login page"
+                echo "CSRF token not found in response, fetching from login page" >&2
                 # Re-authenticate using login function (will fetch CSRF token)
                 login
             fi
             if [ $? -eq 0 ]; then
-                echo "Re-authentication successful, retrying download for ID $id"
+                echo "Re-authentication successful, retrying download for ID $id" >&2
                 # Clean up the old zip file
                 rm -f "$zip_file"
                 # Re-download the zip file with new cookies
@@ -1510,13 +1510,13 @@ get_keywords() {
                 update_cookies_from_file
                 # Check if we still got a login page after re-authentication
                 if grep -q "Login to your account" ${zip_file}; then
-                    echo -e "\033[0;31mError: Still getting login page after re-authentication, retrying function for ID $id\033[0m"
+                    echo -e "\033[0;31mError: Still getting login page after re-authentication, retrying function for ID $id\033[0m" >&2
                     rm -f "$zip_file" "$html_file"
                     get_keywords "$id"
                     continue
                 fi
             else
-                echo -e "\033[0;31mRe-authentication failed, retrying function for ID $id\033[0m"
+                echo -e "\033[0;31mRe-authentication failed, retrying function for ID $id\033[0m" >&2
                 rm -f "$zip_file" "$html_file"
                 get_keywords "$id"
                 continue
@@ -1534,20 +1534,20 @@ get_keywords() {
         top_keyword=""
        #echo "All Keywords: ${keywords[@]}"
         top_keyword=$(get_top_keyword "${keywords[@]}")
-        echo -e "${GREEN}Top keyword: $top_keyword${NC}"
+        echo -e "${GREEN}Top keyword: $top_keyword${NC}" >&2
 
 
 
         if [ "$top_keyword" == "" ] && [ -n "$OPENAI_API_KEY" ]; then
-            echo "Processing GPT for ID: ${id}"
+            echo "Processing GPT for ID: ${id}" >&2
             the_html_file="${html_file}"
             cleaned_html_file=$(clean_html "$(cat "$the_html_file")")
-            echo "Cleaned HTML file: $cleaned_html_file"
+            echo "Cleaned HTML file: $cleaned_html_file" >&2
             gptresult=$(gpt_name "Extract only the name of the offer or platform from the following text. Return nothing else, no explanations, no extra text—just the offer/platform name.The text: $cleaned_html_file")
-            echo "GPT result: $gptresult"
+            echo "GPT result finder for ID: ${id}: $gptresult" >&2
             if [ -n "$gptresult" ]; then
                 top_keyword="$gptresult"
-                echo "GPT result: $gptresult"
+                echo "GPT result set for ID: ${id}: $gptresult" >&2
             fi
         fi
         if [[ "$top_keyword" =~ "\n" ]] || [[ "$top_keyword" =~ "\r" ]] || [[ ${#top_keyword} -gt 20 ]] ; then
@@ -1558,18 +1558,18 @@ get_keywords() {
 
         if [ -n "$url_in_file" ]; then
             if [ $DEBUG_DATA -eq 1 ]; then
-                echo "URL in file: $url_in_file"
+                echo "URL in file: $url_in_file" >&2
             fi
             domain_name=$(echo "$url_in_file" | grep -oP 'https://\K[^/]+')
             if [ $DEBUG_DATA -eq 1 ]; then
-                echo "Domain name: $domain_name"
+                echo "Domain name: $domain_name" >&2
             fi
             # Find the actual record in ADS_DATA_LIST by ID and add the LINK_URL property
             for idx in "${!ADS_DATA_LIST[@]}"; do
                 if [[ "${ADS_DATA_LIST[$idx]}" == "ID:$id "* ]] || [[ "${ADS_DATA_LIST[$idx]}" == "ID:$id |"* ]]; then
                     ADS_DATA_LIST[$idx]="${ADS_DATA_LIST[$idx]} | LINK_URL:$url_in_file | DOMAIN_NAME:$domain_name | ZIP_FILE:$zip_file | KEYWORD:$top_keyword"
                     if [ $DEBUG_DATA -eq 1 ]; then
-                        echo "  - Updated ADS_DATA_LIST record for ID $id with LINK_URL"
+                        echo "  - Updated ADS_DATA_LIST record for ID $id with LINK_URL" >&2
                     fi
                     break
                 fi
@@ -1594,16 +1594,16 @@ get_keywords() {
                 echo -e "${RED}  - Duplicate top keyword: $top_keyword${NC}" >&2
             fi
         else
-            echo "Error: No keywords found for ID ${id}"
-            echo "Response content (first 200 chars):"
+            echo "Error: No keywords found for ID ${id}" >&2
+            echo "Response content (first 200 chars):" >&2  
             # If it's HTML, cat it. If it's a zip but has no keywords, cat the extracted HTML.
             if [ -s "$html_file" ]; then
                 #cat "$html_file"
-                head -c 200 "$html_file"
+                head -c 200 "$html_file" >&2
             else
                 # If no HTML was extracted, maybe the zip_file itself is an error page
-                head -c 500 "$zip_file"
-                echo -e "\n--- End of preview ---"
+                head -c 500 "$zip_file" >&2
+                echo -e "\n--- End of preview ---" >&2
             fi
             #exit 1
         fi
