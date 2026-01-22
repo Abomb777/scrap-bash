@@ -451,6 +451,7 @@ send_to_telegram() {
     
     # Add document if zip_file is provided
     local has_document=false
+    echo "zip_file exists: ${zip_file} - $([ -f "$zip_file" ] && echo "true" || echo "false")" >&2
     if [ -n "$zip_file" ] && [ -f "$zip_file" ]; then
         if [ -f "$zip_file" ]; then
             echo -e "${GREEN}---EXISTING ZIP FILE---Zip file: $zip_file------${NC}" >&2
@@ -474,6 +475,7 @@ send_to_telegram() {
         
         # Build JSON dynamically based on which files exist (both are optional)
         # Escape the message for JSON: backslashes, quotes, newlines, carriage returns
+        message=$(htmlencode "$message")
         local caption_escaped=""
         if command -v awk >/dev/null 2>&1; then
             # awk can handle newlines properly - use RS="" to read entire input, then replace newlines
