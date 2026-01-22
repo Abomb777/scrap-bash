@@ -150,7 +150,7 @@ UNIQUE_KEYWORDS_LIST=()
 
 COOKIES_FILE="${CURRENT_DIR}/login_cookies.txt"
 TEMP_FILES_PREFIX="${CURRENT_DIR}/temp/page_response_"
-SKIP_KEYWORDS_LIST=('Répondre' 'test' 'Responder' 'Risposta' '点赞' '2h ago' 'Alle Leistungen anzeigen' 'Скрыть' 'Come' 'Like' 'Sport' 'Reply' 'Plattform' 'Platforma' 'Platform' '250 Euro')
+SKIP_KEYWORDS_LIST=('Répondre' 'test' 'Responder' 'Risposta' '点赞' '2h ago' 'Alle Leistungen anzeigen' 'Скрыть' 'Come' 'Like' 'Sport' 'Reply' 'Plattform' 'Platforma' 'Platform' '250 Euro' 'Amazon')
 MAX_ATTEMPTS=3
 TOMORROW_TIMESTAMP=$(date -d 'tomorrow' +%s)
 EXTRA_COOKIES="_ym_uid=${TOMORROW_TIMESTAMP}931665485; _ym_d=${TOMORROW_TIMESTAMP}; _ym_isad=2; _ym_visorc=w;"
@@ -483,7 +483,7 @@ send_to_telegram() {
         
         # Build JSON dynamically based on which files exist (both are optional)
         # Escape the message for JSON: backslashes, quotes, newlines, carriage returns
-        message=$(htmlencode "$message")
+        message=$(htmldecode "$message")
         local caption_escaped=""
         if command -v awk >/dev/null 2>&1; then
             # awk can handle newlines properly - use RS="" to read entire input, then replace newlines
@@ -687,7 +687,8 @@ send_to_telegram() {
             -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage"
             -d "chat_id=${chat_id}"
             --data-urlencode "parse_mode=HTML"
-            --data-urlencode "text=$(htmlencode "$message")"
+            --data-urlencode "text=$(htmldecode "$message")"
+#            --data-urlencode "text=$(htmlencode "$message")"
         )
     fi
 
@@ -1659,7 +1660,7 @@ htmldecode() {
         if code_dec=$((10#$code)) 2>/dev/null; then
             if (( code_dec > 0 && code_dec <= 255 )); then
                 # Single-byte (latin1-ish) – safe for most ad texts
-                printf -v ch '\\x%x' "$code_dec"
+                ch=$(awk -v char_code="$code_dec" 'BEGIN {printf "%c", char_code}')
             fi
         fi
 
@@ -1677,7 +1678,7 @@ htmldecode() {
         # Convert hex to decimal
         if code_dec=$((16#$code)) 2>/dev/null; then
             if [[ "$code_dec" -gt 0 && "$code_dec" -le 255 ]]; then
-                printf -v ch '\\x%x' "$code_dec"
+                ch=$(awk -v char_code="$code_dec" 'BEGIN {printf "%c", char_code}')
             fi
         fi
 
