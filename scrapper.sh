@@ -56,13 +56,15 @@ else
     fi
 fi
 
-echo "${GREEN}Temp directory created: ${CURRENT_DIR}/temp${NC}" >&2
+#echo -e "${GREEN}Temp directory created: ${CURRENT_DIR}/temp${NC}" >&2
+# find "/var/lib/rundeck/temp/page_response_.*.zip" -type f -mtime +1
+#
 
-find "${CURRENT_DIR}/temp/page_response_.*.zip" -type f -mtime +1 -delete
-find "${CURRENT_DIR}/temp/page_response_.*.html" -type f -mtime +1 -delete
-find "${CURRENT_DIR}/temp/page_response_.*.bin" -type f -mtime +1 -delete
-find "${CURRENT_DIR}/temp/page_response_.*.png" -type f -mtime +1 -delete
-find "${CURRENT_DIR}/temp/page_response_.*.txt" -type f -mtime +1 -delete
+find "${CURRENT_DIR}/temp/page_response_*.zip" -type f -mtime +1 -delete
+find "${CURRENT_DIR}/temp/page_response_*.html" -type f -mtime +1 -delete
+find "${CURRENT_DIR}/temp/page_response_*.bin" -type f -mtime +1 -delete
+find "${CURRENT_DIR}/temp/page_response_*.png" -type f -mtime +1 -delete
+find "${CURRENT_DIR}/temp/page_response_*.txt" -type f -mtime +1 -delete
 
 
 echo "Del protect 5 seconds"
