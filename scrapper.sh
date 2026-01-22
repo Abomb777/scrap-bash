@@ -37,26 +37,32 @@ fi
 if [ ! -w "${CURRENT_DIR}" ]; then
     echo -e "\033[0;31mError: Current directory '${CURRENT_DIR}' is not writable. Check permissions.\033[0m" >&2
     exit 1
+else
+    if [ ! -d "${CURRENT_DIR}/temp" ]; then
+        echo -e "${RED}Temp directory does not exist: ${CURRENT_DIR}/temp${NC}" >&2
+
+        # Create temp directory
+        mkdir -p "${CURRENT_DIR}/temp" || {
+            echo -e "\033[0;31mError: Failed to create temp directory '${CURRENT_DIR}/temp'. Check permissions.\033[0m" >&2
+            exit 1
+        }
+        chmod 777 "${CURRENT_DIR}/temp"
+    fi
+    if [ -w "${CURRENT_DIR}/temp" ]; then
+        echo -e "${GREEN}Temp directory is writable: ${CURRENT_DIR}/temp${NC}" >&2
+    else
+        echo -e "${RED}Temp directory is not writable: ${CURRENT_DIR}/temp${NC}" >&2
+        exit 1
+    fi
 fi
 
-# Create temp directory
-mkdir -p "${CURRENT_DIR}/temp" || {
-    echo -e "\033[0;31mError: Failed to create temp directory '${CURRENT_DIR}/temp'. Check permissions.\033[0m" >&2
-    exit 1
-}
-chmod 777 "${CURRENT_DIR}/temp"
+echo "${GREEN}Temp directory created: ${CURRENT_DIR}/temp${NC}" >&2
 
-# Verify temp directory is writable
-if [ ! -w "${CURRENT_DIR}/temp" ]; then
-    echo -e "\033[0;31mError: Temp directory '${CURRENT_DIR}/temp' is not writable. Check permissions.\033[0m" >&2
-    exit 1
-fi
-
-rm -f "${CURRENT_DIR}/temp/page_response_.*.html"
-rm -f "${CURRENT_DIR}/temp/page_response_.*.bin"
-rm -f "${CURRENT_DIR}/temp/page_response_.*.png"
-rm -f "${CURRENT_DIR}/temp/page_response_.*.zip"
-rm -f "${CURRENT_DIR}/temp/page_response_.*.txt"
+find "${CURRENT_DIR}/temp/page_response_.*.zip" -type f -mtime +1 -delete
+find "${CURRENT_DIR}/temp/page_response_.*.html" -type f -mtime +1 -delete
+find "${CURRENT_DIR}/temp/page_response_.*.bin" -type f -mtime +1 -delete
+find "${CURRENT_DIR}/temp/page_response_.*.png" -type f -mtime +1 -delete
+find "${CURRENT_DIR}/temp/page_response_.*.txt" -type f -mtime +1 -delete
 
 
 echo "Del protect 5 seconds"
