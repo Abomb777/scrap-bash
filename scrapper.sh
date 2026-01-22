@@ -1550,6 +1550,11 @@ get_keywords() {
                 echo "GPT result: $gptresult"
             fi
         fi
+        if [[ "$top_keyword" =~ "\n" ]] || [[ "$top_keyword" =~ "\r" ]] || [[ ${#top_keyword} -gt 20 ]] ; then
+            #top_keyword=$(echo -e "$top_keyword" | awk 'NR == 1 {print}' | sed -E 's/^[[:space:]]+//' | sed -E 's/[[:space:]]+$//')
+            echo -e "${RED}Top keyword is invalid: $top_keyword ${NC}" >&2
+            top_keyword=""
+        fi
 
         if [ -n "$url_in_file" ]; then
             if [ $DEBUG_DATA -eq 1 ]; then
