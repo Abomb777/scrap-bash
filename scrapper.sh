@@ -374,7 +374,7 @@ nl2nlll() {
 #}
 
 send_to_telegram() {
-    echo "Delaying for $DELAY_SECONDS seconds..."
+    echo "Delaying for $DELAY_SECONDS seconds..." >&2
     sleep $DELAY_SECONDS
 
     local message="$1"
@@ -394,18 +394,18 @@ send_to_telegram() {
    
 
     if [ "$DEBUG_DATA" -eq 1 ]; then
-        echo -e "${RED}--------------------------------${NC}"
-        echo -e "${RED}NO REAL SEND: $message${NC}"
-        echo -e "${RED}--------------------------------${NC}"
+        echo -e "${RED}--------------------------------${NC}" >&2
+        echo -e "${RED}NO REAL SEND: $message${NC}" >&2
+        echo -e "${RED}--------------------------------${NC}" >&2
         return 0
     else
         #echo -e "\033[0;32mSending to Telegram: $message\033[0m"
-        echo -e "${GREEN}--------------------------------${NC}"
-        echo -e "${GREEN}REAL SEND: $message${NC}"
+        echo -e "${GREEN}--------------------------------${NC}" >&2
+        echo -e "${GREEN}REAL SEND: $message${NC}" >&2
         if [ -n "$zip_file" ]; then
-            echo -e "${GREEN}Zip file: $zip_file${NC}"
+            echo -e "${GREEN}Zip file: $zip_file${NC}" >&2
         fi
-        echo -e "${GREEN}--------------------------------${NC}"
+        echo -e "${GREEN}--------------------------------${NC}" >&2
     fi
 
     # For JSON in Telegram API, we need to escape JSON special characters
@@ -586,7 +586,7 @@ send_to_telegram() {
         fi
         
         # Check results
-        echo "Sent to Telegram: ${message}"
+        echo "Sent to Telegram: ${message}" >&2
         if [ "$DEBUG_DATA" -eq 1 ] || echo "$result" | grep -q '"ok":false'; then
             echo "Result: $result"
         else
