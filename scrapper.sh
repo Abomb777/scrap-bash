@@ -572,6 +572,7 @@ send_to_telegram() {
             rm -f "$temp_image_file"
         fi
         if [ -n "$zip_file" ] && [ -f "$zip_file" ]; then
+            echo -e "${RED}--- REMOVING ZIP FILE---Zip file: $zip_file------${NC}" >&2
             rm -f "$zip_file"
         fi
         
@@ -683,6 +684,7 @@ send_to_telegram() {
        # rm -f "$temp_image_file"
     #fi
     if [ -n "$zip_file" ] && [ -f "$zip_file" ]; then
+        echo -e "${GREEN}---687 REMOVING ZIP FILE---Zip file: $zip_file------${NC}" >&2
         rm -f "$zip_file"
     fi
     # Check if result contains an error or if debug is enabled
