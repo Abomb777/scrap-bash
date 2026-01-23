@@ -60,11 +60,30 @@ fi
 # find "/var/lib/rundeck/temp/page_response_.*.zip" -type f -mtime +1
 #
 
-find "${CURRENT_DIR}/temp/page_response_*.zip" -type f -mtime +1 -delete
-find "${CURRENT_DIR}/temp/page_response_*.html" -type f -mtime +1 -delete
-find "${CURRENT_DIR}/temp/page_response_*.bin" -type f -mtime +1 -delete
-find "${CURRENT_DIR}/temp/page_response_*.png" -type f -mtime +1 -delete
-find "${CURRENT_DIR}/temp/page_response_*.txt" -type f -mtime +1 -delete
+deleted_count=0
+count=$(find "${CURRENT_DIR}/temp" -name "page_response_*.zip" -type f -mtime +1 2>/dev/null | wc -l)
+find "${CURRENT_DIR}/temp" -name "page_response_*.zip" -type f -mtime +1 -delete 2>/dev/null
+deleted_count=$((deleted_count + count))
+
+count=$(find "${CURRENT_DIR}/temp" -name "page_response_*.html" -type f -mtime +1 2>/dev/null | wc -l)
+find "${CURRENT_DIR}/temp" -name "page_response_*.html" -type f -mtime +1 -delete 2>/dev/null
+deleted_count=$((deleted_count + count))
+
+count=$(find "${CURRENT_DIR}/temp" -name "page_response_*.bin" -type f -mtime +1 2>/dev/null | wc -l)
+find "${CURRENT_DIR}/temp" -name "page_response_*.bin" -type f -mtime +1 -delete 2>/dev/null
+deleted_count=$((deleted_count + count))
+
+count=$(find "${CURRENT_DIR}/temp" -name "page_response_*.png" -type f -mtime +1 2>/dev/null | wc -l)
+find "${CURRENT_DIR}/temp" -name "page_response_*.png" -type f -mtime +1 -delete 2>/dev/null
+deleted_count=$((deleted_count + count))
+
+count=$(find "${CURRENT_DIR}/temp" -name "page_response_*.txt" -type f -mtime +1 2>/dev/null | wc -l)
+find "${CURRENT_DIR}/temp" -name "page_response_*.txt" -type f -mtime +1 -delete 2>/dev/null
+deleted_count=$((deleted_count + count))
+
+if [ "$deleted_count" -gt 0 ]; then
+    echo "Deleted $deleted_count old temp file(s)"
+fi
 
 
 echo "Del protect 5 seconds"
