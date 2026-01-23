@@ -484,6 +484,11 @@ send_to_telegram() {
         # Build JSON dynamically based on which files exist (both are optional)
         # Escape the message for JSON: backslashes, quotes, newlines, carriage returns
         message=$(htmldecode "$message")
+        if [ "$TG_DEBUGER" = true ]; then
+            echo -e "${YELLOW}--------------------------------${NC}" >&2
+            echo -e "${YELLOW}DEBUG: Message decoded (before caption_escaped): $message${NC}" >&2
+            echo -e "${YELLOW}--------------------------------${NC}" >&2
+        fi
         local caption_escaped=""
         if command -v awk >/dev/null 2>&1; then
             # awk can handle newlines properly - use RS="" to read entire input, then replace newlines
