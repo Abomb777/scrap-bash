@@ -60,35 +60,20 @@ fi
 # find "/var/lib/rundeck/temp/page_response_.*.zip" -type f -mtime +1
 #
 
-deleted_count=0
-count=$(find "${CURRENT_DIR}/temp" -name "page_response_*.zip" -type f -mtime +1 2>/dev/null | wc -l)
-find "${CURRENT_DIR}/temp" -name "page_response_*.zip" -type f -mtime +1 -delete 2>/dev/null
-deleted_count=$((deleted_count + count))
-
-count=$(find "${CURRENT_DIR}/temp" -name "page_response_*.html" -type f -mtime +1 2>/dev/null | wc -l)
-find "${CURRENT_DIR}/temp" -name "page_response_*.html" -type f -mtime +1 -delete 2>/dev/null
-deleted_count=$((deleted_count + count))
-
-count=$(find "${CURRENT_DIR}/temp" -name "page_response_*.bin" -type f -mtime +1 2>/dev/null | wc -l)
-find "${CURRENT_DIR}/temp" -name "page_response_*.bin" -type f -mtime +1 -delete 2>/dev/null
-deleted_count=$((deleted_count + count))
-
-count=$(find "${CURRENT_DIR}/temp" -name "page_response_*.png" -type f -mtime +1 2>/dev/null | wc -l)
-find "${CURRENT_DIR}/temp" -name "page_response_*.png" -type f -mtime +1 -delete 2>/dev/null
-deleted_count=$((deleted_count + count))
-
-count=$(find "${CURRENT_DIR}/temp" -name "page_response_*.txt" -type f -mtime +1 2>/dev/null | wc -l)
-find "${CURRENT_DIR}/temp" -name "page_response_*.txt" -type f -mtime +1 -delete 2>/dev/null
-deleted_count=$((deleted_count + count))
+deleted_count=$(find "${CURRENT_DIR}/temp" -type f -mtime +1 -regex ".*/page_response_.*\.\(zip\|html\|bin\|png\|txt\)$" 2>/dev/null | wc -l)
+find "${CURRENT_DIR}/temp" -type f -mtime +1 -regex ".*/page_response_.*\.\(zip\|html\|bin\|png\|txt\)$" -delete 2>/dev/null
 
 if [ "$deleted_count" -gt 0 ]; then
     echo "Deleted $deleted_count old temp file(s)"
+    echo "Del protect 5 seconds"
+    echo "------------------------------------------"
+    sleep 5
 fi
 
-
-echo "Del protect 5 seconds"
-echo "------------------------------------------"
-sleep 5
+total_temp_files_count=$(find "${CURRENT_DIR}/temp" -type f -regex ".*/page_response_.*\.$" 2>/dev/null | wc -l)
+if [ "$total_temp_files_count" -gt 0 ]; then
+    echo "Total temp files count: $total_temp_files_count"
+fi
 
 
 while getopts "c:l:dt:q:x:u:p:w:z:g:h" opt; do
