@@ -1,26 +1,38 @@
 #!/bin/bash
 set +e  # Don't exit on error - continue execution
 
+#colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
 BLUE='\033[0;34m'
 
+#variables
 LOGIN_EMAIL=""
 LOGIN_PASSWD=""
 DOMAIN=""
 TG_BOT_TOKEN=""
 TG_BOT_CHANNEL=""
 TG_BOT_CHANNEL_TXT=""
-TG_DEBUGER=true
+OPENAI_API_KEY=""
 
-DEBUG_DATA=0
 MAX_PAGES_BACK=1
 DELAY_SECONDS=1
 CATEGORY=1
 TEMP_KW_PREFIX=$(date +%Y%m%d)
-OPENAI_API_KEY=""
 GPT_MODEL="gpt-3.5-turbo"
+
+#DEBUGERS
+LIVE_MODE=false #send messages to telegram
+DEBUG_DATA=0
+TG_DEBUGER=true
+DEBUG_GPT=false
+DEBUG_CLEAN_HTML=false
+DEBUG_GET_TOP_KEYWORD=false
+DEBUG_GET_KEYWORDS=false
+DEBUG_GET_IDS=false
+DEBUG_GET_IDS_EXIT_CODE=false
+DEBUG_GET_IDS_EXIT_CODE=false
 
 # Get current directory, fallback to . if pwd fails (can happen when piped)
 CURRENT_DIR=$(pwd 2>/dev/null || echo ".")
@@ -33,6 +45,39 @@ else
     echo "bsdtar is installed"
 fi
 
+if [ -f "${CURRENT_DIR}/.ENV" ]; then
+    echo -e "${GREEN}Loading .ENV file: ${CURRENT_DIR}/.ENV${NC}"
+    if [[ $(cat "${CURRENT_DIR}/.ENV" | grep "LOGIN_EMAIL=") ]]; then
+        LOGIN_EMAIL=$(cat "${CURRENT_DIR}/.ENV" | grep "LOGIN_EMAIL=" | cut -d "=" -f 2)
+    fi
+    if [[ $(cat "${CURRENT_DIR}/.ENV" | grep "LOGIN_PASSWD=") ]]; then
+        LOGIN_PASSWD=$(cat "${CURRENT_DIR}/.ENV" | grep "LOGIN_PASSWD=" | cut -d "=" -f 2)
+    fi
+    if [[ $(cat "${CURRENT_DIR}/.ENV" | grep "DOMAIN=") ]]; then
+        DOMAIN=$(cat "${CURRENT_DIR}/.ENV" | grep "DOMAIN=" | cut -d "=" -f 2- | xargs)
+    fi
+    if [[ $(cat "${CURRENT_DIR}/.ENV" | grep "TG_BOT_TOKEN=") ]]; then
+        TG_BOT_TOKEN=$(cat "${CURRENT_DIR}/.ENV" | grep "TG_BOT_TOKEN=" | cut -d "=" -f 2)
+    fi
+    if [[ $(cat "${CURRENT_DIR}/.ENV" | grep "TG_BOT_CHANNEL=") ]]; then
+        TG_BOT_CHANNEL=$(cat "${CURRENT_DIR}/.ENV" | grep "TG_BOT_CHANNEL=" | cut -d "=" -f 2)
+    fi
+    if [[ $(cat "${CURRENT_DIR}/.ENV" | grep "TG_BOT_CHANNEL_TXT=") ]]; then
+        TG_BOT_CHANNEL_TXT=$(cat "${CURRENT_DIR}/.ENV" | grep "TG_BOT_CHANNEL_TXT=" | cut -d "=" -f 2)
+    fi
+    if [[ $(cat "${CURRENT_DIR}/.ENV" | grep "OPENAI_API_KEY=") ]]; then
+        OPENAI_API_KEY=$(cat "${CURRENT_DIR}/.ENV" | grep "OPENAI_API_KEY=" | cut -d "=" -f 2)
+    fi
+    if [[ $(cat "${CURRENT_DIR}/.ENV" | grep "LIVE_MODE=") ]]; then
+        LIVE_MODE=$(cat "${CURRENT_DIR}/.ENV" | grep "LIVE_MODE=" | cut -d "=" -f 2)
+    fi
+    if [[ $(cat "${CURRENT_DIR}/.ENV" | grep "DEBUG_DATA=") ]]; then
+        DEBUG_DATA=$(cat "${CURRENT_DIR}/.ENV" | grep "DEBUG_DATA=" | cut -d "=" -f 2)
+    fi
+    if [[ $(cat "${CURRENT_DIR}/.ENV" | grep "TG_DEBUGER=") ]]; then
+        TG_DEBUGER=$(cat "${CURRENT_DIR}/.ENV" | grep "TG_DEBUGER=" | cut -d "=" -f 2)
+    fi
+fi
 # Check if current directory is writable
 if [ ! -w "${CURRENT_DIR}" ]; then
     echo -e "\033[0;31mError: Current directory '${CURRENT_DIR}' is not writable. Check permissions.\033[0m" >&2
@@ -141,11 +186,16 @@ if [ "$DEBUG_DATA" -eq 1 ]; then
     echo -e "${BLUE}Temp keywords file: $TEMP_KW_FILE${NC}"
     echo -e "${BLUE}------------------------------------------${NC}"
 else
-    echo "Debug data is disabled"
+    echo -e "${YELLOW}Debug data is disabled${NC}" >&2
+    echo -e "${BLUE}------------------------------------------${NC}" >&2
 fi
 
-echo -e "\033[0;32mLoading...\033[0m";
+
+# Construct URL properly - ensure no extra spaces or characters
 LINK_URL="https://${DOMAIN}/?adType=${CATEGORY}"
+
+echo -e "${GREEN}Loading... ${LINK_URL} ${NC}" >&2
+
 COOKIES=''
 IDS_LIST=()
 KEYWORDS_LIST=()
@@ -808,16 +858,16 @@ update_cookies_from_file() {
 # Login function to get cookies from response
 login() { 
     local provided_csrf_token="$1"
-    echo "Logging in..."
+    echo -e "${GREEN}Logging in...${NC}" >&2
     
     local csrf_token=""
     
     # If CSRF token was provided, use it; otherwise, fetch from login page
     if [ -n "$provided_csrf_token" ]; then
-        echo "Using provided CSRF token"
         csrf_token="$provided_csrf_token"
+        echo -e "${GREEN}Using provided CSRF token. Provided CSRF token: $csrf_token${NC}" >&2
     else
-        echo "Fetching CSRF token from login page"
+        echo -e "${GREEN}Fetching CSRF token from login page.${NC}" >&2
         # Fetch the login page to extract CSRF token and initial cookies
         # Use -b and -c to handle session state, and EXTRA_COOKIES for consistency
         local login_page_response=$($CURL_CMD -s -b "$COOKIES_FILE" -c "$COOKIES_FILE" "https://${DOMAIN}/login" \
@@ -843,9 +893,9 @@ login() {
 
         # Extract CSRF token from the login page
         csrf_token=$(echo "$login_page_response" | grep -oP 'name="_token" value="\K[^"]+')
-        
+        echo -e "${GREEN}Extracted CSRF token: $csrf_token${NC}" >&2
         if [ -z "$csrf_token" ]; then
-            echo "Error: Could not extract CSRF token from login page"
+            echo -e "${RED}Error: Could not extract CSRF token from login page${NC}" >&2
             return 1
         fi
     fi
@@ -874,16 +924,16 @@ login() {
       --data-urlencode "_token=${csrf_token}" \
       --data-urlencode "email=${LOGIN_EMAIL}" \
       --data-urlencode "password=${LOGIN_PASSWD}" \
-      --data-urlencode "remember=1")
+      --data-urlencode "remember=on")
     
     update_cookies_from_file
     
     if [ -z "$COOKIES" ]; then
-        echo "Error: Login failed - no cookies received"
+        echo -e "${RED}Error: Login failed - no cookies received${NC}" >&2
         return 1
     fi
     
-    echo "Login successful. Cookies obtained."
+    echo -e "${GREEN}Login successful. Cookies obtained.${NC}" >&2
     return 0
 }
 
@@ -913,7 +963,7 @@ image_download() {
         return
     fi
     if [[ "$DEBUG_DATA" -eq 1 ]]; then
-        echo "Downloading image from $image_url" >&2
+        echo -e "${GREEN}Downloading image from $image_url${NC}" >&2
         echo "DEBUG: Cleaned URL: $image_url" >&2
         echo "DEBUG: URL length: ${#image_url}" >&2
     fi
@@ -941,8 +991,8 @@ image_download() {
     
     # Debug output
     if [[ "$DEBUG_DATA" -eq 1 ]]; then
-        echo "DEBUG: HTTP code: $http_code" >&2
-        echo "DEBUG: Image file path: $image_file" >&2
+        echo -e "${GREEN}DEBUG: HTTP code: $http_code${NC}" >&2
+        echo -e "${GREEN}DEBUG: Image file path: $image_file${NC}" >&2
         echo "DEBUG: Image file exists: $([ -f "$image_file" ] && echo "yes" || echo "no")" >&2
     fi
     if [ -f "$image_file" ]; then
@@ -954,12 +1004,12 @@ image_download() {
             debug_file_size=$(wc -c < "$image_file" 2>/dev/null || echo "0")
         fi
         if [[ "$DEBUG_DATA" -eq 1 ]]; then
-            echo "DEBUG: Image file size: $debug_file_size bytes" >&2
+            echo -e "${GREEN}DEBUG: Image file size: $debug_file_size bytes${NC}" >&2
         fi
         # Check file type if available
         if command -v file >/dev/null 2>&1; then
             if [[ "$DEBUG_DATA" -eq 1 ]]; then
-                echo "DEBUG: Image file type: $(file -b "$image_file" 2>/dev/null || echo "unknown")" >&2
+                echo -e "${GREEN}DEBUG: Image file type: $(file -b "$image_file" 2>/dev/null || echo "unknown")${NC}" >&2
             fi
         fi
         
@@ -968,9 +1018,9 @@ image_download() {
             local first_bytes=$(head -c 200 "$image_file" 2>/dev/null | tr -d '\0' | head -c 200)
             if [[ "$DEBUG_DATA" -eq 1 ]]; then
                 if echo "$first_bytes" | grep -qi "<html\|<!DOCTYPE\|error"; then
-                    echo "DEBUG: File appears to be HTML/error page (first bytes: ${first_bytes:0:100}...)" >&2
+                    echo -e "${GREEN}DEBUG: File appears to be HTML/error page (first bytes: ${first_bytes:0:100}...)${NC}" >&2
                 else
-                    echo "DEBUG: File appears to be binary/image data" >&2
+                    echo -e "${GREEN}DEBUG: File appears to be binary/image data${NC}" >&2
                 fi
             fi
         fi
@@ -987,7 +1037,7 @@ image_download() {
                 # Fallback for systems without stat
                 file_size=$(wc -c < "$image_file" 2>/dev/null || echo "0")
             fi
-            echo "Image file size: $file_size" >&2
+            echo -e "${GREEN}Image file size: $file_size${NC}" >&2
             if [ "$file_size" -gt 8000 ]; then
                 echo -e "${GREEN}--------- Image file size is good enough: $file_size${NC}" >&2
                 #rm -f "$image_file"
@@ -1001,7 +1051,7 @@ image_download() {
         # Check if file has content and is likely an image (not HTML error page)
         if [ "$file_size" -gt 100 ] && ! head -c 100 "$image_file" 2>/dev/null | grep -qi "<html\|<!DOCTYPE\|error"; then
             if [[ "$DEBUG_DATA" -eq 1 ]]; then
-                echo "DEBUG: File validation passed, encoding to base64..." >&2
+                echo -e "${GREEN}DEBUG: File validation passed, encoding to base64...${NC}" >&2
             fi
             # Return base64-encoded image data
             if command -v base64 >/dev/null 2>&1; then
@@ -1009,18 +1059,18 @@ image_download() {
                 local base64_result=$(base64 -w 0 "$image_file" 2>/dev/null || base64 "$image_file" 2>/dev/null | tr -d '\n')
                 if [ -n "$base64_result" ]; then
                     if [[ "$DEBUG_DATA" -eq 1 ]]; then
-                        echo "DEBUG: Base64 encoding successful (length: ${#base64_result} chars)" >&2
+                        echo -e "${GREEN}DEBUG: Base64 encoding successful (length: ${#base64_result} chars)${NC}" >&2
                     fi
                     echo "$base64_result"
                 else
                     if [[ "$DEBUG_DATA" -eq 1 ]]; then
-                        echo "DEBUG: Base64 encoding failed or produced empty result" >&2
+                        echo -e "${GREEN}DEBUG: Base64 encoding failed or produced empty result${NC}" >&2
                     fi
                     rm -f "$image_file"
                     echo ""
                 fi
             else
-                echo -e "\033[0;31mError: base64 command not found\033[0m" >&2
+                echo -e "${RED}Error: base64 command not found${NC}" >&2
                 rm -f "$image_file"
                 echo ""
                 return
@@ -1028,14 +1078,14 @@ image_download() {
             # Clean up the temporary file
             rm -f "$image_file"
         else
-            echo "Warning: Downloaded file is empty or not a valid image (size: $file_size)" >&2
+            echo -e "${RED}Warning: Downloaded file is empty or not a valid image (size: $file_size)${NC}" >&2
             rm -f "$image_file"
             echo ""
         fi
     else
-        echo "Warning: Failed to download image (HTTP code: $http_code)" >&2
+        echo -e "${RED}Warning: Failed to download image (HTTP code: $http_code)${NC}" >&2
         if [ "$http_code" = "000" ]; then
-            echo "DEBUG: HTTP 000 usually means curl connection failed. Check network/cookies." >&2
+            echo -e "${GREEN}DEBUG: HTTP 000 usually means curl connection failed. Check network/cookies.${NC}" >&2
         fi
         # Clean up on failure too
         rm -f "$image_file"
@@ -1047,13 +1097,13 @@ image_download() {
 # Populates the global IDS_LIST array
 get_ids() {
     for i in $(seq 1 $MAX_PAGES_BACK); do
-        echo "Page Number $i"
+        echo -e "${GREEN}Page Number $i${NC}" >&2
         SCANURL=''
         if [ "$i" -gt 1 ]; then
-            echo "${LINK_URL}&page=${i}"
+            echo -e "${GREEN}${LINK_URL}&page=${i}${NC}" >&2
             SCANURL="${LINK_URL}&page=${i}"
         else
-            echo "${LINK_URL}"
+            echo -e "${GREEN}${LINK_URL}${NC}" >&2
             SCANURL="${LINK_URL}"
         fi
         
@@ -1063,7 +1113,7 @@ get_ids() {
         
         while [ $attempt -le $MAX_ATTEMPTS ] && [ $success -eq 0 ]; do
             if [ $attempt -gt 1 ]; then
-                echo "Retry attempt $attempt of $MAX_ATTEMPTS for page $i"
+                echo -e "${GREEN}Retry attempt $attempt of $MAX_ATTEMPTS for page $i${NC}" >&2
             fi
             
             # Get HTTP status code and response body
@@ -1071,7 +1121,7 @@ get_ids() {
             # -b reads initial cookies, -c updates the file with any Set-Cookie from response
             local temp_file="${TEMP_FILES_PREFIX}$$.txt"
             if [ $DEBUG_DATA -eq 1 ]; then
-                echo "DEBUG: TEMP FILES PREFIX: ${TEMP_FILES_PREFIX}"
+                echo -e "${GREEN}DEBUG: TEMP FILES PREFIX: ${TEMP_FILES_PREFIX}${NC}" >&2
                 echo "DEBUG: Temp file path: $temp_file" >&2
                 echo "DEBUG: Cookies file: $COOKIES_FILE" >&2
                 echo "DEBUG: URL: $SCANURL" >&2
@@ -1339,7 +1389,7 @@ extract_kw() {
     readarray -t prod_array < <(grep -oP '<product[a-z]*>\K[^<]+(?=</product[a-z]*>)' "$html_file" | sed -E "s/^[[:space:]\"\“\”\‘\’\']+|[[:space:]\"\“\”\‘\’\']+$//g" | grep -v '^$' | awk '{print $1}')
     #echo "Product: ${prod_array[@]}" >&2
     # Merge both arrays
-    local merged_array=("${atags_array[@]}" "${paragraphs_array[@]}" "${bold_array[@]}" "${prod_array[@]}")
+    local merged_array=("${atags_array[@]}" "${atags_array[@]}" "${paragraphs_array[@]}" "${bold_array[@]}" "${prod_array[@]}")
     
     # Output merged array, one element per line
     printf '%s\n' "${merged_array[@]}"
